@@ -1,4 +1,4 @@
 export const environment = {
     production: true,
-    apiUrl: 'https://api.sys.mrpauthenticautoparts.com/v1'
+    apiUrl: 'https://api.smokepos.homedollarmarketing.com/v1'
 };
