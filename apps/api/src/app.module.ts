@@ -24,6 +24,7 @@ import { ExpensesModule } from './modules/expenses/expenses.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { MessagesModule } from './modules/messages/messages.module';
 
 // Guards, Interceptors, Filters
 import { AuthGuard } from './common/guards/auth.guard';
@@ -58,6 +59,7 @@ import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
     ProcurementModule,
     ReportsModule,
     DashboardModule,
+    MessagesModule,
   ],
   controllers: [],
   providers: [

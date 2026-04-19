@@ -28,6 +28,7 @@ import { PurchaseOrderItem } from '../modules/procurement/entities/purchase-orde
 import { PurchaseOrder } from '../modules/procurement/entities/purchase-order.entity';
 import { Wishlist } from '../modules/customers/entities/wishlist.entity';
 import { StockAdjustment } from '../modules/products/entities/stock-adjustment.entity';
+import { Message } from '../modules/messages/entities/message.entity';
 
 // Export all entities for use in scripts
 export const entities = [
@@ -52,6 +53,7 @@ export const entities = [
   PurchaseOrder,
   PurchaseOrderItem,
   Wishlist,
+  Message,
 ];
 
 // Base database options (shared between app and CLI)

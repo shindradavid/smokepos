@@ -117,5 +117,44 @@
         </div>
       </div>
     }
+
+    @if (canViewMessages()) {
+      <div class="card inbox">
+        <div class="inbox-header">
+          <div>
+            <h3>Inbox</h3>
+            @if (badgeService.getBadgeCount('messages') > 0) {
+              <span class="branch-badge">{{ badgeService.getBadgeCount('messages') }} unread</span>
+            }
+          </div>
+          <button pButton type="button" label="Open Inbox" class="p-button-text p-button-sm" (click)="openMessages()"></button>
+        </div>
+
+        @if (messagesLoading()) {
+          <div class="loading">
+            <i class="pi pi-spin pi-spinner"></i>
+            <span>Loading inbox...</span>
+          </div>
+        } @else if (recentMessages().length > 0) {
+          <div class="inbox-list">
+            @for (message of recentMessages(); track message.id) {
+              <button type="button" class="inbox-item" [class.unread]="!message.isRead" (click)="openInboxMessage(message)">
+                <div class="inbox-item-header">
+                  <span class="inbox-sender">{{ message.sender.firstName }} {{ message.sender.lastName }}</span>
+                  <span class="inbox-date">{{ formatMessageDate(message.createdAt) }}</span>
+                </div>
+                <p class="inbox-subject">{{ message.subject }}</p>
+                <p class="inbox-preview">{{ message.body }}</p>
+              </button>
+            }
+          </div>
+        } @else {
+          <div class="empty-state">
+            <i class="pi pi-envelope"></i>
+            <p>No messages yet.</p>
+          </div>
+        }
+      </div>
+    }
   </div>
 </div>

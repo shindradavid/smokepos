@@ -8,6 +8,7 @@ import { BranchService } from './branch.service';
 
 export interface SidebarBadgeCounts {
   salesPayments: number;
+  messages: number;
 }
 
 @Injectable({
@@ -23,10 +24,12 @@ export class SidebarBadgeService implements OnDestroy {
 
   // Badge counts signals
   readonly salesPaymentsCount = signal(0);
+  readonly messagesCount = signal(0);
 
   // Computed map for easy access by key
   readonly badgeCounts = computed<SidebarBadgeCounts>(() => ({
     salesPayments: this.salesPaymentsCount(),
+    messages: this.messagesCount(),
   }));
 
   constructor() {
@@ -71,26 +74,36 @@ export class SidebarBadgeService implements OnDestroy {
    */
   refreshCounts() {
     const branchId = this.branchService.currentBranchId();
-    if (!branchId) return;
 
     // Only fetch counts for endpoints the user has permission to access
     const requests: { [key: string]: any } = {};
 
     // Sales Payments - branch scoped with sale.approve_payment permission
-    if (this.authService.hasPermission('sale.approve_payment')) {
+    if (branchId && this.authService.hasPermission('sale.approve_payment')) {
       requests['salesPayments'] = this.http
         .get<{ pending: number }>(`${environment.apiUrl}/sales/payments/stats?branchId=${branchId}`)
         .pipe(catchError(() => of({ pending: 0 })));
     }
 
+    if (
+      this.authService.hasPermission('message.view') ||
+      this.authService.hasPermission('message.read')
+    ) {
+      requests['messages'] = this.http
+        .get<{ unread: number }>(`${environment.apiUrl}/messages/unread-count`)
+        .pipe(catchError(() => of({ unread: 0 })));
+    }
+
     // If no requests to make, reset all counts
     if (Object.keys(requests).length === 0) {
       this.salesPaymentsCount.set(0);
+      this.messagesCount.set(0);
       return;
     }
 
     forkJoin(requests).subscribe((results: any) => {
       this.salesPaymentsCount.set(results['salesPayments']?.pending ?? 0);
+      this.messagesCount.set(results['messages']?.unread ?? 0);
     });
   }
 

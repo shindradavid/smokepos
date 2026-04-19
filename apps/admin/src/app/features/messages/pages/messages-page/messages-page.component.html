@@ -1,0 +1,242 @@
+<div class="messages-page">
+  <p-toast></p-toast>
+
+  <app-page-header
+    title="Messages"
+    subtitle="Send messages to other admins and manage your inbox"
+    [showAddButton]="canCompose()"
+    addButtonLabel="Compose"
+    addButtonIcon="pi pi-envelope"
+    (addClick)="openCompose()"
+  ></app-page-header>
+
+  @if (error()) {
+    <div class="error-banner">
+      <i class="pi pi-exclamation-circle"></i>
+      <span>{{ error() }}</span>
+    </div>
+  }
+
+  <div class="toolbar-card">
+    <div class="mailbox-toggle">
+      <button
+        pButton
+        type="button"
+        label="Inbox"
+        icon="pi pi-inbox"
+        [outlined]="activeMailbox() !== 'inbox'"
+        (click)="setMailbox('inbox')"
+      ></button>
+      <button
+        pButton
+        type="button"
+        label="Sent"
+        icon="pi pi-send"
+        [outlined]="activeMailbox() !== 'sent'"
+        (click)="setMailbox('sent')"
+      ></button>
+    </div>
+
+    <div class="toolbar-actions">
+      <div class="search-group">
+        <input
+          pInputText
+          type="text"
+          [(ngModel)]="searchTerm"
+          placeholder="Search subject, body, or sender"
+          (keyup.enter)="onSearch()"
+        />
+        <button pButton type="button" icon="pi pi-search" [outlined]="true" (click)="onSearch()"></button>
+        <button
+          pButton
+          type="button"
+          icon="pi pi-times"
+          [text]="true"
+          (click)="clearSearch()"
+        ></button>
+      </div>
+
+      @if (activeMailbox() === 'inbox') {
+        <label class="unread-filter">
+          <p-checkbox [(ngModel)]="unreadOnly" [binary]="true" (onChange)="onUnreadOnlyChange()"></p-checkbox>
+          <span>Unread only</span>
+        </label>
+      }
+    </div>
+  </div>
+
+  <div class="messages-layout">
+    <div class="list-card">
+      <div class="list-header">
+        <div>
+          <h3>{{ activeMailbox() === 'inbox' ? 'Inbox' : 'Sent Messages' }}</h3>
+          @if (activeMailbox() === 'inbox' && unreadCount() > 0) {
+            <span class="subtext">{{ unreadCount() }} unread</span>
+          }
+        </div>
+        <span class="subtext">{{ currentPagination().total }} total</span>
+      </div>
+
+      @if (isMailboxLoading()) {
+        <div class="state-block">
+          <i class="pi pi-spin pi-spinner"></i>
+          <span>Loading messages...</span>
+        </div>
+      } @else if (currentMessages().length === 0) {
+        <div class="state-block empty">
+          <i class="pi pi-envelope"></i>
+          <span>No messages found.</span>
+        </div>
+      } @else {
+        <div class="message-list">
+          @for (message of currentMessages(); track message.id) {
+            <button
+              type="button"
+              class="message-item"
+              [class.active]="selectedMessage()?.id === message.id"
+              [class.unread]="activeMailbox() === 'inbox' && !message.isRead"
+              (click)="selectMessage(message)"
+            >
+              <div class="message-item-header">
+                <div class="message-meta">
+                  <span class="participant">
+                    {{ getCounterparty(message).firstName }} {{ getCounterparty(message).lastName }}
+                  </span>
+                  @if (activeMailbox() === 'inbox' && !message.isRead) {
+                    <span class="dot"></span>
+                  }
+                </div>
+                <span class="date">{{ formatMessageDate(message.createdAt) }}</span>
+              </div>
+
+              <h4>{{ message.subject }}</h4>
+              <p>{{ message.body }}</p>
+            </button>
+          }
+        </div>
+      }
+
+      <div class="pagination">
+        <button
+          pButton
+          type="button"
+          label="Prev"
+          icon="pi pi-chevron-left"
+          class="p-button-outlined p-button-sm"
+          [disabled]="currentPagination().page <= 1"
+          (click)="onPrevPage()"
+        ></button>
+        <span>Page {{ currentPagination().page }} of {{ currentPagination().totalPages }}</span>
+        <button
+          pButton
+          type="button"
+          label="Next"
+          icon="pi pi-chevron-right"
+          iconPos="right"
+          class="p-button-outlined p-button-sm"
+          [disabled]="currentPagination().page >= currentPagination().totalPages"
+          (click)="onNextPage()"
+        ></button>
+      </div>
+    </div>
+
+    <div class="detail-card">
+      @if (selectedMessage()) {
+        <div class="detail-header">
+          <div>
+            <h3>{{ selectedMessage()!.subject }}</h3>
+            <p>
+              <strong>{{ activeMailbox() === 'inbox' ? 'From' : 'To' }}:</strong>
+              {{ getCounterparty(selectedMessage()!).firstName }}
+              {{ getCounterparty(selectedMessage()!).lastName }}
+              ({{ getCounterparty(selectedMessage()!).email }})
+            </p>
+            <p><strong>Date:</strong> {{ formatMessageDate(selectedMessage()!.createdAt) }}</p>
+          </div>
+          <div class="detail-actions">
+            <p-tag
+              [severity]="getReadStateSeverity(selectedMessage()!)"
+              [value]="selectedMessage()!.isRead ? 'Read' : 'Unread'"
+            ></p-tag>
+            @if (canCompose()) {
+              <button
+                pButton
+                type="button"
+                label="Reply"
+                icon="pi pi-reply"
+                [outlined]="true"
+                (click)="replyToSelectedMessage()"
+              ></button>
+            }
+          </div>
+        </div>
+
+        <div class="detail-body">
+          {{ selectedMessage()!.body }}
+        </div>
+      } @else {
+        <div class="state-block empty detail-empty">
+          <i class="pi pi-comments"></i>
+          <span>Select a message to read it.</span>
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<p-dialog
+  header="Compose Message"
+  [visible]="showComposeDialog()"
+  [modal]="true"
+  [draggable]="false"
+  [closable]="!isSending()"
+  [style]="{ width: '600px', maxWidth: '95vw' }"
+  (visibleChange)="showComposeDialog.set($event)"
+  (onHide)="closeCompose()"
+>
+  <form [formGroup]="composeForm" class="compose-form" (ngSubmit)="sendMessage()">
+    <div class="form-field">
+      <label for="recipientId">Recipient</label>
+      <p-select
+        id="recipientId"
+        formControlName="recipientId"
+        [options]="recipientSelectOptions()"
+        placeholder="Select an admin"
+        optionLabel="label"
+        optionValue="value"
+        [loading]="isRecipientsLoading()"
+        [style]="{ width: '100%' }"
+      ></p-select>
+      @if (composeForm.get('recipientId')?.invalid && composeForm.get('recipientId')?.touched) {
+        <small class="p-error">Recipient is required</small>
+      }
+    </div>
+
+    <div class="form-field">
+      <label for="subject">Subject</label>
+      <input pInputText id="subject" formControlName="subject" placeholder="Enter subject" />
+      @if (composeForm.get('subject')?.invalid && composeForm.get('subject')?.touched) {
+        <small class="p-error">Subject is required</small>
+      }
+    </div>
+
+    <div class="form-field">
+      <label for="body">Message</label>
+      <textarea
+        pInputTextarea
+        id="body"
+        formControlName="body"
+        rows="8"
+        placeholder="Write your message"
+      ></textarea>
+      @if (composeForm.get('body')?.invalid && composeForm.get('body')?.touched) {
+        <small class="p-error">Message body is required</small>
+      }
+    </div>
+
+    <div class="dialog-actions">
+      <button pButton type="button" label="Cancel" [text]="true" (click)="closeCompose()"></button>
+      <button pButton type="submit" label="Send Message" icon="pi pi-send" [loading]="isSending()"></button>
+    </div>
+  </form>
+</p-dialog>

@@ -15,6 +15,7 @@ import { User } from '../../auth/entities/user.entity';
 import { StaffRole } from '../../roles/entities/role.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { AuditLog } from '../../audit-logs/entities/audit-log.entity';
+import { Message } from '../../messages/entities/message.entity';
 
 @Entity({ name: 'staff' })
 export class Staff extends BaseEntity {
@@ -73,6 +74,12 @@ export class Staff extends BaseEntity {
 
   @OneToMany(() => AuditLog, (auditLog) => auditLog.performedBy)
   auditLogs: AuditLog[];
+
+  @OneToMany(() => Message, (message) => message.sender)
+  sentMessages: Message[];
+
+  @OneToMany(() => Message, (message) => message.recipient)
+  receivedMessages: Message[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

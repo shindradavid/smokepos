@@ -34,6 +34,7 @@ export const PermissionGroups = {
   brand: createCRUD('brand'),
   customer: createCRUD('customer'),
   staff: createCRUD('staff'),
+  message: ['message.view', 'message.create', 'message.read'],
   sale: [...createCRUD('sale'), 'sale.approve_payment'],
   expense: [...createCRUD('expense'), 'expense.approve'],
   supplier: createCRUD('supplier'),

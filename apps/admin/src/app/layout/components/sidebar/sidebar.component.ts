@@ -78,6 +78,14 @@ export class SidebarComponent {
     { label: 'Expenses', icon: 'pi pi-wallet', route: '/expenses', permission: 'expense.view' },
     { label: 'Reports', icon: 'pi pi-chart-bar', route: '/reports', permission: 'report.view' },
 
+    {
+      label: 'Messages',
+      icon: 'pi pi-envelope',
+      route: '/messages',
+      permission: 'message.view',
+      badgeKey: 'messages',
+    },
+
     // Administration
     { label: 'Branches', icon: 'pi pi-building', route: '/branches', permission: 'branch.view' },
     { label: 'Staff', icon: 'pi pi-id-card', route: '/staff', permission: 'staff.view' },

@@ -7,8 +7,11 @@ import { StatsCardComponent } from '../../../../shared/components/stats-card/sta
 import { DashboardService } from '../../../../core/services/dashboard.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { BranchService } from '../../../../core/services/branch.service';
+import { SidebarBadgeService } from '../../../../core/services/sidebar-badge.service';
 import { DashboardStats } from '../../../../core/models/dashboard.model';
 import { formatCurrency } from '../../../../shared/utils/currency.util';
+import { MessagesService } from '../../../messages/services/messages.service';
+import { AdminMessage } from '../../../messages/models/message.model';
 
 interface StatCard {
   title: string;
@@ -42,9 +45,13 @@ export class DashboardComponent implements OnInit {
   private readonly authService = inject(AuthService);
   readonly branchService = inject(BranchService);
   private readonly router = inject(Router);
+  private readonly messagesService = inject(MessagesService);
+  readonly badgeService = inject(SidebarBadgeService);
 
   readonly dashboardStats = signal<DashboardStats | null>(null);
   readonly statsLoading = signal(false);
+  readonly recentMessages = signal<AdminMessage[]>([]);
+  readonly messagesLoading = signal(false);
 
   constructor() {
     // Reload stats when branch changes
@@ -52,6 +59,14 @@ export class DashboardComponent implements OnInit {
       const branchId = this.branchService.currentBranchId();
       if (branchId) {
         this.loadDashboardStats();
+      }
+    });
+
+    effect(() => {
+      const unreadCount = this.badgeService.getBadgeCount('messages');
+      if (this.canViewMessages()) {
+        void unreadCount;
+        this.loadRecentMessages();
       }
     });
   }
@@ -64,6 +79,10 @@ export class DashboardComponent implements OnInit {
   readonly canViewInventory = computed(() => this.authService.hasPermission('dashboard.inventory'));
 
   readonly canViewFinancial = computed(() => this.authService.hasPermission('dashboard.financial'));
+
+  readonly canViewMessages = computed(
+    () => this.authService.hasPermission('message.view') || this.authService.hasPermission('message.read')
+  );
 
   // Expose formatCurrency to template
   readonly formatCurrency = formatCurrency;
@@ -375,6 +394,7 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit() {
     this.loadDashboardStats();
+    this.loadRecentMessages();
   }
 
   private loadDashboardStats() {
@@ -411,5 +431,40 @@ export class DashboardComponent implements OnInit {
 
   onQuickAction(action: QuickAction) {
     this.router.navigate([action.route]);
+  }
+
+  openMessages() {
+    this.router.navigate(['/messages']);
+  }
+
+  openInboxMessage(_message: AdminMessage) {
+    this.router.navigate(['/messages'], { queryParams: { view: 'inbox' } });
+  }
+
+  formatMessageDate(value: string) {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    }).format(new Date(value));
+  }
+
+  private loadRecentMessages() {
+    if (!this.canViewMessages()) {
+      return;
+    }
+
+    this.messagesLoading.set(true);
+    this.messagesService.getInbox({ page: 1, limit: 5 }).subscribe({
+      next: (response) => {
+        this.recentMessages.set(response.data);
+        this.messagesLoading.set(false);
+      },
+      error: () => {
+        this.recentMessages.set([]);
+        this.messagesLoading.set(false);
+      },
+    });
   }
 }

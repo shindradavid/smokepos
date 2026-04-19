@@ -219,6 +219,12 @@
     align-items: center;
     margin-bottom: $spacing-md;
 
+    > div {
+      display: flex;
+      align-items: center;
+      gap: $spacing-sm;
+    }
+
     h3 {
       margin-bottom: 0;
     }
@@ -235,8 +241,14 @@
     border: 1px solid $gray-200;
     border-radius: $border-radius-sm;
     cursor: pointer;
+    width: 100%;
+    text-align: left;
     transition: all $transition-fast;
     background-color: $white;
+
+    &.unread {
+      border-left: 4px solid $primary;
+    }
 
     &:hover {
       background-color: $gray-50;

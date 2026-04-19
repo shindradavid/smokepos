@@ -1,0 +1,251 @@
+@use '../../../../../styles/variables' as *;
+@use '../../../../../styles/mixins' as *;
+
+.messages-page {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-lg;
+}
+
+.toolbar-card,
+.list-card,
+.detail-card {
+  @include card;
+  padding: $spacing-lg;
+}
+
+.toolbar-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: $spacing-md;
+  flex-wrap: wrap;
+}
+
+.mailbox-toggle {
+  display: flex;
+  gap: $spacing-sm;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-md;
+  flex-wrap: wrap;
+}
+
+.search-group {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+
+  input {
+    min-width: 280px;
+  }
+}
+
+.unread-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: $spacing-xs;
+  color: $text-secondary;
+  font-size: $font-size-sm;
+}
+
+.messages-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+  gap: $spacing-md;
+
+  @media (max-width: 1024px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.list-header,
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: $spacing-md;
+  margin-bottom: $spacing-md;
+
+  h3 {
+    margin: 0 0 0.25rem;
+  }
+
+  p {
+    margin: 0.25rem 0 0;
+    color: $text-secondary;
+    font-size: $font-size-sm;
+  }
+}
+
+.subtext {
+  font-size: $font-size-sm;
+  color: $text-muted;
+}
+
+.message-list {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-sm;
+  min-height: 420px;
+}
+
+.message-item {
+  width: 100%;
+  border: 1px solid $gray-200;
+  border-radius: $border-radius;
+  padding: $spacing-md;
+  text-align: left;
+  background: $white;
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover,
+  &.active {
+    border-color: $primary;
+    box-shadow: $shadow-sm;
+    background: $gray-50;
+  }
+
+  &.unread {
+    border-left: 4px solid $primary;
+  }
+
+  h4 {
+    margin: 0 0 0.35rem;
+    font-size: $font-size-base;
+    color: $text-primary;
+  }
+
+  p {
+    margin: 0;
+    color: $text-secondary;
+    font-size: $font-size-sm;
+    line-height: 1.5;
+    display: -webkit-box;
+    line-clamp: 2;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+.message-item-header {
+  display: flex;
+  justify-content: space-between;
+  gap: $spacing-sm;
+  margin-bottom: 0.35rem;
+}
+
+.message-meta {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.participant {
+  font-weight: 600;
+  color: $text-primary;
+  font-size: $font-size-sm;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: $primary;
+}
+
+.date {
+  color: $text-muted;
+  font-size: $font-size-xs;
+  white-space: nowrap;
+}
+
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: $spacing-md;
+  margin-top: $spacing-md;
+  padding-top: $spacing-md;
+  border-top: 1px solid $gray-200;
+}
+
+.detail-card {
+  min-height: 560px;
+}
+
+.detail-actions {
+  display: flex;
+  gap: $spacing-sm;
+  align-items: center;
+}
+
+.detail-body {
+  white-space: pre-wrap;
+  color: $text-primary;
+  line-height: 1.7;
+  padding-top: $spacing-md;
+  border-top: 1px solid $gray-200;
+}
+
+.state-block {
+  min-height: 240px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: $spacing-sm;
+  color: $text-muted;
+  text-align: center;
+
+  i {
+    font-size: 2rem;
+  }
+
+  &.empty {
+    border: 1px dashed $gray-300;
+    border-radius: $border-radius;
+  }
+}
+
+.detail-empty {
+  min-height: 420px;
+}
+
+.compose-form {
+  display: flex;
+  flex-direction: column;
+  gap: $spacing-md;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+
+  input,
+  textarea {
+    width: 100%;
+  }
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: $spacing-sm;
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-md;
+  border-radius: $border-radius;
+  background: rgba($danger, 0.08);
+  color: $danger;
+}
