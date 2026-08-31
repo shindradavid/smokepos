@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { StockAdjustment, StockAdjustmentType } from '../entities/stock-adjustment.entity';
 import { createPaginationMeta, PaginationQueryDto } from '../../../common/dto/pagination.dto';
+import { BranchAccessService } from '../../shared/services/branch-access.service';
 
 export interface CreateStockAdjustmentData {
   productId: string;
@@ -34,6 +35,7 @@ export class StockAdjustmentsService {
   constructor(
     @InjectRepository(StockAdjustment)
     private readonly adjustmentRepository: Repository<StockAdjustment>,
+    private readonly branchAccessService: BranchAccessService
   ) {}
 
   /**
@@ -65,7 +67,7 @@ export class StockAdjustmentsService {
    */
   async createAdjustmentWithManager(
     manager: any,
-    data: CreateStockAdjustmentData,
+    data: CreateStockAdjustmentData
   ): Promise<StockAdjustment> {
     const adjustment = manager.create(StockAdjustment, {
       productId: data.productId,
@@ -90,17 +92,26 @@ export class StockAdjustmentsService {
   /**
    * Get stock adjustment history for a specific product (paginated).
    */
-  async findByProduct(productId: string, query: PaginationQueryDto) {
+  async findByProduct(productId: string, query: PaginationQueryDto, staffId?: string | null) {
+    if (!staffId) {
+      throw new UnauthorizedException('Staff identification required to view stock history');
+    }
+
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
+    const accessibleBranchIds = await this.branchAccessService.getAccessibleBranchIds(staffId);
 
-    const [data, total] = await this.adjustmentRepository.findAndCount({
-      where: { productId },
-      relations: ['staff', 'product'],
-      order: { createdAt: 'DESC' },
-      skip,
-      take: limit,
-    });
+    const qb = this.adjustmentRepository
+      .createQueryBuilder('adj')
+      .leftJoinAndSelect('adj.staff', 'staff')
+      .leftJoinAndSelect('adj.product', 'product')
+      .where('adj.productId = :productId', { productId })
+      .andWhere('adj.branchId IN (:...accessibleBranchIds)', { accessibleBranchIds })
+      .orderBy('adj.createdAt', 'DESC')
+      .skip(skip)
+      .take(limit);
+
+    const [data, total] = await qb.getManyAndCount();
 
     return {
       data,
@@ -111,7 +122,11 @@ export class StockAdjustmentsService {
   /**
    * Get all stock adjustments with filters (paginated).
    */
-  async findAll(query: StockAdjustmentsQueryDto) {
+  async findAll(query: StockAdjustmentsQueryDto, staffId?: string | null) {
+    if (!staffId) {
+      throw new UnauthorizedException('Staff identification required to view stock history');
+    }
+
     const { page = 1, limit = 20, branchId, productId, adjustmentType, startDate, endDate } = query;
     const skip = (page - 1) * limit;
 
@@ -121,8 +136,12 @@ export class StockAdjustmentsService {
       .leftJoinAndSelect('adj.staff', 'staff')
       .leftJoinAndSelect('adj.branch', 'branch');
 
+    const accessibleBranchIds = await this.branchAccessService.getAccessibleBranchIds(staffId);
     if (branchId) {
+      await this.branchAccessService.assertCanAccess(staffId, branchId);
       qb.andWhere('adj.branchId = :branchId', { branchId });
+    } else {
+      qb.andWhere('adj.branchId IN (:...accessibleBranchIds)', { accessibleBranchIds });
     }
 
     if (productId) {

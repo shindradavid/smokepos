@@ -13,12 +13,10 @@ import {
   FetchItemsFn,
 } from '../../../../shared/components/item-picker-dialog/item-picker-dialog.component';
 import { ProductsService } from '../../../../core/services/products.service';
-import { BrandsService } from '../../../../core/services/brands.service';
 import { CategoriesService } from '../../../../core/services/categories.service';
 import { BranchService } from '../../../../core/services/branch.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { Product } from '../../../../core/models/product.model';
-import { Brand } from '../../../../core/models/brand.model';
 import { Category } from '../../../../core/models/category.model';
 import { PaginationMeta, ProductsQuery } from '../../../../core/models/pagination.model';
 
@@ -41,7 +39,6 @@ const DEFAULT_LIMIT = 20;
 })
 export class ProductListComponent implements OnInit {
   private readonly productsService = inject(ProductsService);
-  private readonly brandsService = inject(BrandsService);
   private readonly categoriesService = inject(CategoriesService);
   private readonly branchService = inject(BranchService);
   private readonly authService = inject(AuthService);
@@ -67,29 +64,17 @@ export class ProductListComponent implements OnInit {
   readonly searchTerm = signal('');
   readonly selectedStatus = signal<string>('');
   readonly selectedStockStatus = signal<string>('');
-  readonly selectedBrand = signal<Brand | null>(null);
   readonly selectedCategory = signal<Category | null>(null);
   readonly minPrice = signal<number | null>(null);
   readonly maxPrice = signal<number | null>(null);
 
   // Modal visibility
-  readonly brandPickerVisible = signal(false);
   readonly categoryPickerVisible = signal(false);
 
   // Search debounce
   private searchSubject = new Subject<string>();
 
   // Fetch functions for pickers
-  readonly fetchBrands: FetchItemsFn<Brand> = (query) => {
-    const branchId = this.branchService.currentBranchId() || undefined;
-    return this.brandsService.getBrands({
-      page: query.page,
-      limit: query.limit,
-      search: query.search,
-      branchId,
-    });
-  };
-
   readonly fetchCategories: FetchItemsFn<Category> = (query) => {
     const branchId = this.branchService.currentBranchId() || undefined;
     return this.categoriesService.getCategories({
@@ -108,7 +93,6 @@ export class ProductListComponent implements OnInit {
       this.searchTerm() !== '' ||
       this.selectedStatus() !== '' ||
       this.selectedStockStatus() !== '' ||
-      this.selectedBrand() !== null ||
       this.selectedCategory() !== null ||
       this.minPrice() !== null ||
       this.maxPrice() !== null
@@ -129,7 +113,7 @@ export class ProductListComponent implements OnInit {
   }
 
   ngOnInit() {
-    // No need to preload brands/categories anymore
+    // Picker data is loaded on demand.
   }
 
   loadProducts(page: number = 1) {
@@ -143,7 +127,6 @@ export class ProductListComponent implements OnInit {
       search: this.searchTerm() || undefined,
       isActive: this.selectedStatus() === '' ? undefined : this.selectedStatus() === 'active',
       stockStatus: (this.selectedStockStatus() as any) || undefined,
-      brandId: this.selectedBrand()?.id || undefined,
       categoryId: this.selectedCategory()?.id || undefined,
       minPrice: this.minPrice() ?? undefined,
       maxPrice: this.maxPrice() ?? undefined,
@@ -177,11 +160,6 @@ export class ProductListComponent implements OnInit {
     this.loadProducts(1);
   }
 
-  onBrandSelected(brand: Brand | null) {
-    this.selectedBrand.set(brand);
-    this.loadProducts(1);
-  }
-
   onCategorySelected(category: Category | null) {
     this.selectedCategory.set(category);
     this.loadProducts(1);
@@ -201,7 +179,6 @@ export class ProductListComponent implements OnInit {
     this.searchTerm.set('');
     this.selectedStatus.set('');
     this.selectedStockStatus.set('');
-    this.selectedBrand.set(null);
     this.selectedCategory.set(null);
     this.minPrice.set(null);
     this.maxPrice.set(null);
@@ -234,10 +211,6 @@ export class ProductListComponent implements OnInit {
   }
 
   // Modal openers
-  openBrandPicker() {
-    this.brandPickerVisible.set(true);
-  }
-
   openCategoryPicker() {
     this.categoryPickerVisible.set(true);
   }

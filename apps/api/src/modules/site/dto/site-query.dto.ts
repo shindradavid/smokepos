@@ -18,28 +18,12 @@ export class SiteProductsQueryDto {
 
   @IsOptional()
   @IsString()
-  brand?: string; // brand slug
-
-  @IsOptional()
-  @IsString()
   search?: string;
 }
 
 export class SiteCategoriesQueryDto {
   @IsOptional()
   @Transform(({ value }) => (value ? Number(value) : 1))
-  @IsNumber()
-  page?: number;
-
-  @IsOptional()
-  @Transform(({ value }) => (value ? Number(value) : 50))
-  @IsNumber()
-  limit?: number;
-}
-
-export class SiteBrandsQueryDto {
-  @IsOptional()
-  @Transform(({ value }) => (value ? Number(value) : 50))
   @IsNumber()
   page?: number;
 

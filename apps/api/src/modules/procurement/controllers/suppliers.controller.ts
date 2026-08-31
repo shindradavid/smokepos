@@ -29,20 +29,23 @@ export class SuppliersController {
 
   @Get()
   @RequirePermission('supplier.view')
-  findAll(@Query() query: SuppliersQueryDto) {
-    return this.suppliersService.findAll(query);
+  findAll(@Query() query: SuppliersQueryDto, @ReqAuthUser('staffId') staffId?: string | null) {
+    return this.suppliersService.findAll(query, staffId);
   }
 
   @Get('by-branch/:branchId')
   @RequirePermission('supplier.view')
-  findByBranch(@Param('branchId', ParseUUIDPipe) branchId: string) {
-    return this.suppliersService.findByBranch(branchId);
+  findByBranch(
+    @Param('branchId', ParseUUIDPipe) branchId: string,
+    @ReqAuthUser('staffId') staffId?: string | null
+  ) {
+    return this.suppliersService.findByBranch(branchId, staffId);
   }
 
   @Get(':id')
   @RequirePermission('supplier.view')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.suppliersService.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @ReqAuthUser('staffId') staffId?: string | null) {
+    return this.suppliersService.findOne(id, staffId);
   }
 
   @Patch(':id')

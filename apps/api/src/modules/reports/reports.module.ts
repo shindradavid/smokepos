@@ -6,10 +6,9 @@ import { Sale } from '../sales/entities/sale.entity';
 import { SaleItem } from '../sales/entities/sale-item.entity';
 import { Expense } from '../expenses/entities/expense.entity';
 import { Product } from '../products/entities/product.entity';
-import { Category } from '../products/entities/category.entity';
 import { Branch } from '../branches/entities/branch.entity';
 import { PurchaseOrder } from '../procurement/entities/purchase-order.entity';
-import { Supplier } from '../procurement/entities/supplier.entity';
+import { PurchaseOrderItem } from '../procurement/entities/purchase-order-item.entity';
 
 // Services
 import {
@@ -31,10 +30,9 @@ import { ReportsController } from './reports.controller';
       SaleItem,
       Expense,
       Product,
-      Category,
       Branch,
       PurchaseOrder,
-      Supplier,
+      PurchaseOrderItem,
     ]),
   ],
   controllers: [ReportsController],

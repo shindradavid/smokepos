@@ -10,7 +10,6 @@ import {
   Unique,
 } from 'typeorm';
 import { Category } from './category.entity';
-import { Brand } from './brand.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 
 @Entity('products')
@@ -43,13 +42,6 @@ export class Product {
   @ManyToOne(() => Category, (category) => category.products)
   @JoinColumn({ name: 'category_id' })
   category: Category;
-
-  @Column({ name: 'brand_id', nullable: true })
-  brandId: string;
-
-  @ManyToOne(() => Brand, (brand) => brand.products)
-  @JoinColumn({ name: 'brand_id' })
-  brand: Brand;
 
   @Column({ name: 'branch_id', type: 'uuid' })
   branchId: string;

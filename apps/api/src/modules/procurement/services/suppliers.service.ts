@@ -5,12 +5,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike } from 'typeorm';
+import { Repository, ILike, In } from 'typeorm';
 import { Supplier } from '../entities/supplier.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { CreateSupplierDto, UpdateSupplierDto, SuppliersQueryDto } from '../dto';
 import { createPaginationMeta } from '../../../common/dto/pagination.dto';
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
+import { BranchAccessService } from '../../shared/services/branch-access.service';
 
 @Injectable()
 export class SuppliersService {
@@ -19,7 +20,8 @@ export class SuppliersService {
     private readonly supplierRepository: Repository<Supplier>,
     @InjectRepository(Branch)
     private readonly branchRepository: Repository<Branch>,
-    private readonly auditLogsService: AuditLogsService
+    private readonly auditLogsService: AuditLogsService,
+    private readonly branchAccessService: BranchAccessService
   ) {}
 
   /**
@@ -54,6 +56,7 @@ export class SuppliersService {
     if (!staffId) {
       throw new UnauthorizedException('Staff identification required to create suppliers');
     }
+    await this.branchAccessService.assertCanAccess(staffId, createSupplierDto.branchId);
 
     // Validate branch exists
     const branch = await this.branchRepository.findOne({
@@ -86,14 +89,22 @@ export class SuppliersService {
     return saved;
   }
 
-  async findAll(query: SuppliersQueryDto) {
+  async findAll(query: SuppliersQueryDto, staffId?: string | null) {
+    if (!staffId) {
+      throw new UnauthorizedException('Staff identification required to view suppliers');
+    }
+
     const { page = 1, limit = 20, branchId, isActive, search } = query;
     const skip = (page - 1) * limit;
 
     const whereConditions: any = {};
 
+    const accessibleBranchIds = await this.branchAccessService.getAccessibleBranchIds(staffId);
     if (branchId) {
+      await this.branchAccessService.assertCanAccess(staffId, branchId);
       whereConditions.branchId = branchId;
+    } else {
+      whereConditions.branchId = In(accessibleBranchIds);
     }
 
     if (isActive !== undefined) {
@@ -118,7 +129,7 @@ export class SuppliersService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, staffId?: string | null) {
     const supplier = await this.supplierRepository.findOne({
       where: { id },
       relations: ['branch'],
@@ -126,6 +137,10 @@ export class SuppliersService {
 
     if (!supplier) {
       throw new NotFoundException('Supplier not found');
+    }
+
+    if (staffId) {
+      await this.branchAccessService.assertCanAccess(staffId, supplier.branchId);
     }
 
     return supplier;
@@ -136,7 +151,7 @@ export class SuppliersService {
       throw new UnauthorizedException('Staff identification required to update suppliers');
     }
 
-    const supplier = await this.findOne(id);
+    const supplier = await this.findOne(id, staffId);
 
     // Don't allow changing branch
     if (updateSupplierDto.branchId && updateSupplierDto.branchId !== supplier.branchId) {
@@ -164,7 +179,7 @@ export class SuppliersService {
       throw new UnauthorizedException('Staff identification required to delete suppliers');
     }
 
-    const supplier = await this.findOne(id);
+    const supplier = await this.findOne(id, staffId);
 
     await this.supplierRepository.remove(supplier);
 
@@ -181,7 +196,12 @@ export class SuppliersService {
     return { message: 'Supplier deleted successfully' };
   }
 
-  async findByBranch(branchId: string) {
+  async findByBranch(branchId: string, staffId?: string | null) {
+    if (!staffId) {
+      throw new UnauthorizedException('Staff identification required to view suppliers');
+    }
+    await this.branchAccessService.assertCanAccess(staffId, branchId);
+
     return this.supplierRepository.find({
       where: { branchId, isActive: true },
       order: { name: 'ASC' },

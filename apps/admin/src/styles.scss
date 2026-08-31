@@ -1,14 +1,11 @@
 // ====================================
-// Mr P Authentic Auto Parts - Main Styles
+// QWIK POS - Main Styles
 // ====================================
 
 // Variables and Mixins
 @use 'styles/variables' as *;
 @use 'styles/mixins' as *;
 @use 'styles/primeng-overrides';
-
-// Google Fonts
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
 // PrimeIcons
 @import 'primeicons/primeicons.css';

@@ -4,14 +4,7 @@ import { Observable } from 'rxjs';
 
 import { environment } from '../../../../environments/environment';
 import { PaginatedResponse, PaginationQuery } from '../../../shared/models/pagination.model';
-import {
-  Customer,
-  Vehicle,
-  CreateCustomerDto,
-  UpdateCustomerDto,
-  CreateVehicleDto,
-  UpdateVehicleDto,
-} from '../models/customer.model';
+import { Customer, CreateCustomerDto, UpdateCustomerDto } from '../models/customer.model';
 
 @Injectable({
   providedIn: 'root',
@@ -75,15 +68,6 @@ export class CustomersService {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 
-  // ========== Vehicle Methods ==========
-
-  /**
-   * Get all vehicles for a customer
-   */
-  getVehicles(customerId: string): Observable<Vehicle[]> {
-    return this.http.get<Vehicle[]>(`${this.apiUrl}/${customerId}/vehicles`);
-  }
-
   /**
    * Search customers by name, email, or phone for autocomplete
    */
@@ -95,30 +79,5 @@ export class CustomersService {
     }
 
     return this.http.get<Customer[]>(`${this.apiUrl}/search`, { params });
-  }
-
-  /**
-   * Create a new vehicle for a customer
-   */
-  createVehicle(customerId: string, data: CreateVehicleDto): Observable<Vehicle> {
-    return this.http.post<Vehicle>(`${this.apiUrl}/${customerId}/vehicles`, data);
-  }
-
-  /**
-   * Update an existing vehicle
-   */
-  updateVehicle(
-    customerId: string,
-    vehicleId: string,
-    data: UpdateVehicleDto
-  ): Observable<Vehicle> {
-    return this.http.patch<Vehicle>(`${this.apiUrl}/${customerId}/vehicles/${vehicleId}`, data);
-  }
-
-  /**
-   * Delete a vehicle
-   */
-  deleteVehicle(customerId: string, vehicleId: string): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/${customerId}/vehicles/${vehicleId}`);
   }
 }

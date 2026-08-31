@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Repository,
@@ -7,6 +12,7 @@ import {
   MoreThanOrEqual,
   LessThanOrEqual,
   Between,
+  DataSource,
 } from 'typeorm';
 import { Product } from '../entities/product.entity';
 import { CreateProductDto, UpdateProductDto, UpdateStockDto } from '../dtos/product.dto';
@@ -19,15 +25,21 @@ import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { AuthUser } from '../../../common/types/auth-user.interface';
 import { StockAdjustmentsService } from './stock-adjustments.service';
 import { StockAdjustmentType } from '../entities/stock-adjustment.entity';
+import { BranchAccessService } from '../../shared/services/branch-access.service';
+import { Category } from '../entities/category.entity';
 
 @Injectable()
 export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
     private readonly storageService: StorageService,
     private readonly auditLogsService: AuditLogsService,
     private readonly stockAdjustmentsService: StockAdjustmentsService,
+    private readonly branchAccessService: BranchAccessService,
+    private readonly dataSource: DataSource
   ) {}
 
   async create(
@@ -38,6 +50,8 @@ export class ProductsService {
     if (!authUser?.staffId) {
       throw new UnauthorizedException('Staff identification required to create products');
     }
+    await this.branchAccessService.assertCanAccess(authUser.staffId, createProductDto.branchId);
+    await this.validateProductRelations(createProductDto.branchId, createProductDto.categoryId);
 
     // Upload images if provided
     let images: string[] = [];
@@ -70,13 +84,17 @@ export class ProductsService {
     return savedProduct;
   }
 
-  async findAll(query: ScopedQueryDto): Promise<PaginatedResultDto<Product>> {
+  async findAll(query: ScopedQueryDto, authUser?: AuthUser): Promise<PaginatedResultDto<Product>> {
+    if (!authUser?.staffId) {
+      throw new UnauthorizedException('Staff identification required to view products');
+    }
+    await this.branchAccessService.assertCanAccess(authUser.staffId, query.branchId);
+
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
     const qb = this.productRepository
       .createQueryBuilder('product')
-      .leftJoinAndSelect('product.brand', 'brand')
       .leftJoinAndSelect('product.category', 'category');
 
     // Branch filter
@@ -88,11 +106,6 @@ export class ProductsService {
     if (query.isActive !== undefined) {
       const isActive = query.isActive === 'true';
       qb.andWhere('product.isActive = :isActive', { isActive });
-    }
-
-    // Brand filter
-    if (query.brandId) {
-      qb.andWhere('product.brandId = :brandId', { brandId: query.brandId });
     }
 
     // Category filter
@@ -146,13 +159,16 @@ export class ProductsService {
     };
   }
 
-  async findOne(id: string): Promise<Product> {
+  async findOne(id: string, authUser?: AuthUser): Promise<Product> {
     const product = await this.productRepository.findOne({
       where: { id },
-      relations: ['brand', 'category'],
+      relations: ['category'],
     });
     if (!product) {
       throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+    if (authUser?.staffId) {
+      await this.branchAccessService.assertCanAccess(authUser.staffId, product.branchId);
     }
     return product;
   }
@@ -167,7 +183,11 @@ export class ProductsService {
       throw new UnauthorizedException('Staff identification required to update products');
     }
 
-    const product = await this.findOne(id);
+    const product = await this.findOne(id, authUser);
+    if (updateProductDto.branchId && updateProductDto.branchId !== product.branchId) {
+      throw new BadRequestException('Cannot change a product branch');
+    }
+    await this.validateProductRelations(product.branchId, updateProductDto.categoryId);
 
     // Upload new images if provided
     if (files && files.length > 0) {
@@ -194,12 +214,23 @@ export class ProductsService {
     return savedProduct;
   }
 
+  private async validateProductRelations(branchId: string, categoryId?: string): Promise<void> {
+    if (categoryId) {
+      const categoryExists = await this.categoryRepository.exists({
+        where: { id: categoryId, branchId },
+      });
+      if (!categoryExists) {
+        throw new BadRequestException('Category does not belong to the product branch');
+      }
+    }
+  }
+
   async remove(id: string, authUser?: AuthUser): Promise<void> {
     if (!authUser?.staffId) {
       throw new UnauthorizedException('Staff identification required to delete products');
     }
 
-    const product = await this.findOne(id);
+    const product = await this.findOne(id, authUser);
     await this.productRepository.remove(product);
 
     if (authUser?.staffId) {
@@ -222,40 +253,57 @@ export class ProductsService {
       throw new UnauthorizedException('Staff identification required to adjust stock');
     }
 
-    const product = await this.findOne(id);
-    const previousQuantity = product.quantity;
-    const previousCostPrice = product.costPrice;
-    product.quantity = updateStockDto.quantity;
+    const existingProduct = await this.findOne(id, authUser);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Allow optional cost price update on manual adjustment
-    if (updateStockDto.costPrice !== undefined) {
-      product.costPrice = updateStockDto.costPrice;
+    let savedProduct!: Product;
+    let previousQuantity!: number;
+
+    try {
+      const product = await queryRunner.manager.findOne(Product, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!product) throw new NotFoundException(`Product with ID ${id} not found`);
+
+      previousQuantity = product.quantity;
+      const previousCostPrice = product.costPrice;
+      product.quantity = updateStockDto.quantity;
+      if (updateStockDto.costPrice !== undefined) {
+        product.costPrice = updateStockDto.costPrice;
+      }
+
+      savedProduct = await queryRunner.manager.save(product);
+      await this.stockAdjustmentsService.createAdjustmentWithManager(queryRunner.manager, {
+        productId: savedProduct.id,
+        branchId: savedProduct.branchId,
+        adjustmentType: StockAdjustmentType.MANUAL,
+        quantityChange: updateStockDto.quantity - previousQuantity,
+        previousQuantity,
+        newQuantity: savedProduct.quantity,
+        unitCost: savedProduct.costPrice,
+        previousCostPrice,
+        newCostPrice: savedProduct.costPrice,
+        reason: updateStockDto.reason || null,
+        staffId: authUser.staffId,
+      });
+
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    const savedProduct = await this.productRepository.save(product);
-
-    // Create stock adjustment record
-    const quantityChange = updateStockDto.quantity - previousQuantity;
-    await this.stockAdjustmentsService.createAdjustment({
-      productId: savedProduct.id,
-      branchId: savedProduct.branchId,
-      adjustmentType: StockAdjustmentType.MANUAL,
-      quantityChange,
-      previousQuantity,
-      newQuantity: savedProduct.quantity,
-      unitCost: savedProduct.costPrice,
-      previousCostPrice,
-      newCostPrice: savedProduct.costPrice,
-      reason: updateStockDto.reason || null,
-      staffId: authUser.staffId,
-    });
 
     await this.auditLogsService.logAction({
       staffId: authUser.staffId,
       action: 'UPDATE',
       entity: 'product',
       entityId: savedProduct.id,
-      description: `Adjusted stock for "${savedProduct.name}" from ${previousQuantity} to ${updateStockDto.quantity}${updateStockDto.reason ? ` - Reason: ${updateStockDto.reason}` : ''}`,
+      description: `Adjusted stock for "${existingProduct.name}" from ${previousQuantity} to ${updateStockDto.quantity}${updateStockDto.reason ? ` - Reason: ${updateStockDto.reason}` : ''}`,
     });
 
     return savedProduct;

@@ -35,9 +35,6 @@ const CONSTRAINT_FIELD_MAP: Record<string, string> = {
   // Categories
   UQ_categories_name: 'name',
   UQ_categories_slug: 'slug',
-  // Brands
-  UQ_brands_name: 'name',
-  UQ_brands_slug: 'slug',
   // Customers
   UQ_customers_phone: 'phone number',
   UQ_customers_email: 'email',

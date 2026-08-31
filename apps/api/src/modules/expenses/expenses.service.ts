@@ -16,6 +16,7 @@ import { ReviewExpenseDto } from './dto/review-expense.dto';
 import { StorageService } from '../shared/services/storage.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { createPaginationMeta } from '../../common/dto/pagination.dto';
+import { BranchAccessService } from '../shared/services/branch-access.service';
 
 @Injectable()
 export class ExpensesService {
@@ -25,7 +26,8 @@ export class ExpensesService {
     @InjectRepository(Branch)
     private readonly branchRepository: Repository<Branch>,
     private readonly storageService: StorageService,
-    private readonly auditLogsService: AuditLogsService
+    private readonly auditLogsService: AuditLogsService,
+    private readonly branchAccessService: BranchAccessService
   ) {}
 
   /**
@@ -66,6 +68,7 @@ export class ExpensesService {
     if (!staffId) {
       throw new UnauthorizedException('Staff identification required to create expenses');
     }
+    await this.branchAccessService.assertCanAccess(staffId, createExpenseDto.branchId);
 
     // Validate branch exists
     const branch = await this.branchRepository.findOne({
@@ -110,10 +113,14 @@ export class ExpensesService {
       },
     });
 
-    return this.findOne(savedExpense.id);
+    return this.findOne(savedExpense.id, staffId);
   }
 
-  async findAll(query: ExpensesQueryDto) {
+  async findAll(query: ExpensesQueryDto, staffId?: string | null) {
+    if (!staffId) {
+      throw new UnauthorizedException('Staff identification required to view expenses');
+    }
+
     const { page = 1, limit = 20, search, status, branchId, category, dateFrom, dateTo } = query;
 
     const qb = this.expenseRepository
@@ -124,8 +131,12 @@ export class ExpensesService {
       .leftJoinAndSelect('expense.staff', 'staff');
 
     // Filter by branch (required for proper access control)
+    const accessibleBranchIds = await this.branchAccessService.getAccessibleBranchIds(staffId);
     if (branchId) {
+      await this.branchAccessService.assertCanAccess(staffId, branchId);
       qb.andWhere('expense.branchId = :branchId', { branchId });
+    } else {
+      qb.andWhere('expense.branchId IN (:...accessibleBranchIds)', { accessibleBranchIds });
     }
 
     // Filter by status
@@ -165,7 +176,7 @@ export class ExpensesService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, staffId?: string | null) {
     const expense = await this.expenseRepository.findOne({
       where: { id },
       relations: ['branch', 'createdBy', 'reviewedBy', 'staff'],
@@ -173,6 +184,10 @@ export class ExpensesService {
 
     if (!expense) {
       throw new NotFoundException(`Expense with ID "${id}" not found`);
+    }
+
+    if (staffId) {
+      await this.branchAccessService.assertCanAccess(staffId, expense.branchId);
     }
 
     return expense;
@@ -188,13 +203,16 @@ export class ExpensesService {
       throw new UnauthorizedException('Staff identification required to update expenses');
     }
 
-    const expense = await this.findOne(id);
+    const expense = await this.findOne(id, staffId);
 
     // Check if expense can be modified
     if (expense.status !== ExpenseStatus.PENDING) {
       throw new BadRequestException(
         `Cannot update expense with status "${expense.status}". Only pending expenses can be updated.`
       );
+    }
+    if (updateExpenseDto.branchId && updateExpenseDto.branchId !== expense.branchId) {
+      throw new BadRequestException('Cannot change an expense branch');
     }
 
     // Upload new receipt if provided
@@ -220,7 +238,7 @@ export class ExpensesService {
       },
     });
 
-    return this.findOne(updatedExpense.id);
+    return this.findOne(updatedExpense.id, staffId);
   }
 
   async remove(id: string, staffId?: string | null) {
@@ -228,7 +246,7 @@ export class ExpensesService {
       throw new UnauthorizedException('Staff identification required to delete expenses');
     }
 
-    const expense = await this.findOne(id);
+    const expense = await this.findOne(id, staffId);
 
     // Check if expense can be deleted
     if (expense.status !== ExpenseStatus.PENDING) {
@@ -262,7 +280,7 @@ export class ExpensesService {
       throw new UnauthorizedException('Staff identification required to review expenses');
     }
 
-    const expense = await this.findOne(id);
+    const expense = await this.findOne(id, staffId);
 
     // Check if expense can be reviewed
     if (expense.status !== ExpenseStatus.PENDING) {
@@ -303,7 +321,7 @@ export class ExpensesService {
       },
     });
 
-    return this.findOne(updatedExpense.id);
+    return this.findOne(updatedExpense.id, staffId);
   }
 
   /**

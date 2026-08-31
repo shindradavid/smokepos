@@ -12,6 +12,7 @@ import {
   ParseUUIDPipe,
   UseInterceptors,
   UploadedFile,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ReqAuthUser } from '../../../common/decorators/req-auth-user.decorator';
@@ -19,12 +20,16 @@ import { AuthUser } from '../../../common/types/auth-user.interface';
 import { CategoriesService } from '../services/categories.service';
 import { CreateCategoryDto, UpdateCategoryDto } from '../dtos/category.dto';
 import { ScopedQueryDto } from '../dtos/scoped-query.dto';
+import { PermissionGuard } from '../../../common/guards/permission.guard';
+import { RequirePermission } from '../../../common/decorators/require-permission.decorator';
 
 @Controller({ path: 'categories', version: '1' })
+@UseGuards(PermissionGuard)
 export class CategoriesController {
   constructor(private readonly categoriesService: CategoriesService) {}
 
   @Post()
+  @RequirePermission('category.create')
   @UseInterceptors(FileInterceptor('image'))
   create(
     @Body() createCategoryDto: CreateCategoryDto,
@@ -36,16 +41,19 @@ export class CategoriesController {
 
   @Get()
   @UsePipes(new ValidationPipe({ transform: true }))
-  findAll(@Query() query: ScopedQueryDto) {
-    return this.categoriesService.findAll(query);
+  @RequirePermission('category.view')
+  findAll(@Query() query: ScopedQueryDto, @ReqAuthUser() authUser?: AuthUser) {
+    return this.categoriesService.findAll(query, authUser);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.categoriesService.findOne(id);
+  @RequirePermission('category.view')
+  findOne(@Param('id', ParseUUIDPipe) id: string, @ReqAuthUser() authUser?: AuthUser) {
+    return this.categoriesService.findOne(id, authUser);
   }
 
   @Patch(':id')
+  @RequirePermission('category.edit')
   @UseInterceptors(FileInterceptor('image'))
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -57,6 +65,7 @@ export class CategoriesController {
   }
 
   @Delete(':id')
+  @RequirePermission('category.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @ReqAuthUser() authUser?: AuthUser) {
     return this.categoriesService.remove(id, authUser);
   }

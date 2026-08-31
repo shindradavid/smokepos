@@ -21,7 +21,11 @@ export class BranchService {
     // Initialize branch when branches change
     effect(() => {
       const branches = this.authService.branches();
-      if (branches.length > 0 && !this._currentBranch()) {
+      const currentBranch = this._currentBranch();
+      if (
+        branches.length > 0 &&
+        (!currentBranch || !branches.some((branch) => branch.id === currentBranch.id))
+      ) {
         this.initializeBranch(branches);
       }
     });

@@ -16,15 +16,17 @@
       </div>
     </div>
     <div class="header-actions">
-      <button
-        pButton
-        label="Export PDF"
-        icon="pi pi-file-pdf"
-        severity="danger"
-        [loading]="isExporting()"
-        [disabled]="!data() || isLoading()"
-        (click)="exportPdf()"
-      ></button>
+      @if (canExport()) {
+        <button
+          pButton
+          label="Export PDF"
+          icon="pi pi-file-pdf"
+          severity="danger"
+          [loading]="isExporting()"
+          [disabled]="!data() || isLoading()"
+          (click)="exportPdf()"
+        ></button>
+      }
     </div>
   </div>
 
@@ -73,7 +75,9 @@
         <div class="card-icon">
           <i
             [class]="
-              reportData.summary.grossProfit >= 0 ? 'pi pi-arrow-up-right' : 'pi pi-arrow-down-right'
+              reportData.summary.grossProfit >= 0
+                ? 'pi pi-arrow-up-right'
+                : 'pi pi-arrow-down-right'
             "
           ></i>
         </div>
@@ -119,7 +123,9 @@
         </div>
         <div class="card-content">
           <span class="label">Total Cost of Available Stock</span>
-          <span class="value">{{ formatCurrency(reportData.summary.totalCostOfAvailableStock) }}</span>
+          <span class="value">{{
+            formatCurrency(reportData.summary.totalCostOfAvailableStock)
+          }}</span>
         </div>
       </div>
     </div>
@@ -175,6 +181,7 @@
             <tr>
               <th>Month</th>
               <th class="text-right">Revenue</th>
+              <th class="text-right">COGS</th>
               <th class="text-right">Expenses</th>
               <th class="text-right">Profit</th>
             </tr>
@@ -183,6 +190,7 @@
             <tr>
               <td class="font-medium">{{ month.month }}</td>
               <td class="text-right text-success">{{ formatCurrency(month.revenue) }}</td>
+              <td class="text-right">{{ formatCurrency(month.cogs) }}</td>
               <td class="text-right text-danger">{{ formatCurrency(month.expenses) }}</td>
               <td
                 class="text-right font-bold"
@@ -191,6 +199,28 @@
               >
                 {{ formatCurrency(month.profit) }}
               </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    }
+
+    @if (reportData.revenueByCategory.length > 0) {
+      <div class="table-section">
+        <h3>Revenue by Product Category</h3>
+        <p-table [value]="reportData.revenueByCategory" styleClass="p-datatable-sm">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Category</th>
+              <th class="text-right">Revenue</th>
+              <th class="text-right">Percentage</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-category>
+            <tr>
+              <td>{{ category.category }}</td>
+              <td class="text-right">{{ formatCurrency(category.amount) }}</td>
+              <td class="text-right">{{ category.percentage | number: '1.1-1' }}%</td>
             </tr>
           </ng-template>
         </p-table>

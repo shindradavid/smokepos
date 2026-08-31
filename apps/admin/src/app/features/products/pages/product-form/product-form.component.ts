@@ -8,11 +8,9 @@ import {
   FetchItemsFn,
 } from '../../../../shared/components/item-picker-dialog/item-picker-dialog.component';
 import { ProductsService } from '../../../../core/services/products.service';
-import { BrandsService } from '../../../../core/services/brands.service';
 import { CategoriesService } from '../../../../core/services/categories.service';
 import { BranchService } from '../../../../core/services/branch.service';
 import { AuthService } from '../../../../core/services/auth.service';
-import { Brand } from '../../../../core/models/brand.model';
 import { Category } from '../../../../core/models/category.model';
 
 @Component({
@@ -25,7 +23,6 @@ import { Category } from '../../../../core/models/category.model';
 export class ProductFormComponent implements OnInit {
   private fb = inject(FormBuilder);
   private productsService = inject(ProductsService);
-  private brandsService = inject(BrandsService);
   private categoriesService = inject(CategoriesService);
   private branchService = inject(BranchService);
   private authService = inject(AuthService);
@@ -42,11 +39,9 @@ export class ProductFormComponent implements OnInit {
   }
 
   // Selected items for pickers
-  readonly selectedBrand = signal<Brand | null>(null);
   readonly selectedCategory = signal<Category | null>(null);
 
   // Modal visibility
-  readonly brandPickerVisible = signal(false);
   readonly categoryPickerVisible = signal(false);
 
   // Image handling
@@ -55,16 +50,6 @@ export class ProductFormComponent implements OnInit {
   existingImages: string[] = [];
 
   // Fetch functions for pickers (scoped to current branch)
-  readonly fetchBrands: FetchItemsFn<Brand> = (query) => {
-    const branchId = this.branchService.currentBranchId() || undefined;
-    return this.brandsService.getBrands({
-      page: query.page,
-      limit: query.limit,
-      search: query.search,
-      branchId,
-    });
-  };
-
   readonly fetchCategories: FetchItemsFn<Category> = (query) => {
     const branchId = this.branchService.currentBranchId() || undefined;
     return this.categoriesService.getCategories({
@@ -80,7 +65,6 @@ export class ProductFormComponent implements OnInit {
       name: ['', Validators.required],
       description: [''],
       sku: [''],
-      brandId: [null],
       categoryId: [null],
       price: [0, [Validators.required, Validators.min(0)]],
       costPrice: [null, [Validators.min(0)]],
@@ -107,26 +91,13 @@ export class ProductFormComponent implements OnInit {
         if (product.images && product.images.length > 0) {
           this.existingImages = product.images;
         }
-        // Set selected brand/category for display
-        if (product.brand) {
-          this.selectedBrand.set(product.brand);
-        }
+        // Set the selected category for display.
         if (product.category) {
           this.selectedCategory.set(product.category);
         }
       },
       error: (err) => console.error('Failed to load product', err),
     });
-  }
-
-  // Brand picker handlers
-  openBrandPicker() {
-    this.brandPickerVisible.set(true);
-  }
-
-  onBrandSelected(brand: Brand | null) {
-    this.selectedBrand.set(brand);
-    this.productForm.patchValue({ brandId: brand?.id || null });
   }
 
   // Category picker handlers
@@ -189,7 +160,6 @@ export class ProductFormComponent implements OnInit {
 
     if (formValue.description) formData.append('description', formValue.description);
     if (formValue.sku) formData.append('sku', formValue.sku);
-    if (formValue.brandId) formData.append('brandId', formValue.brandId);
     if (formValue.categoryId) formData.append('categoryId', formValue.categoryId);
     if (formValue.costPrice !== undefined && formValue.costPrice !== null)
       formData.append('costPrice', formValue.costPrice.toString());

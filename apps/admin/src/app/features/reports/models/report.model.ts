@@ -11,6 +11,9 @@ export interface SalesReportData {
   summary: {
     totalRevenue: number;
     totalTax: number;
+    costOfGoodsSold: number;
+    grossProfit: number;
+    grossProfitMargin: number;
     totalSales: number;
     averageOrderValue: number;
   };
@@ -24,6 +27,8 @@ export interface SalesReportData {
     productName: string;
     quantitySold: number;
     revenue: number;
+    cost: number;
+    profit: number;
   }[];
   salesByStatus: {
     status: string;
@@ -87,7 +92,8 @@ export interface ExpenseReportData {
 export interface InventoryReportData {
   summary: {
     totalProducts: number;
-    totalStockValue: number;
+    totalCostValue: number;
+    totalRetailValue: number;
     lowStockCount: number;
     outOfStockCount: number;
     averageStockLevel: number;
@@ -97,7 +103,8 @@ export interface InventoryReportData {
     categoryName: string;
     productCount: number;
     totalQuantity: number;
-    totalValue: number;
+    totalRetailValue: number;
+    totalCostValue: number;
   }[];
   lowStockProducts: {
     id: string;
@@ -106,6 +113,7 @@ export interface InventoryReportData {
     quantity: number;
     lowStockThreshold: number;
     price: number;
+    costPrice: number | null;
     categoryName: string;
   }[];
   topValueProducts: {
@@ -114,7 +122,9 @@ export interface InventoryReportData {
     sku: string;
     quantity: number;
     price: number;
-    stockValue: number;
+    retailValue: number;
+    costPrice: number | null;
+    costValue: number;
   }[];
   branch: {
     id: string;

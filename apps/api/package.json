@@ -1,7 +1,7 @@
 {
   "name": "@smoke-pos/api",
   "version": "0.0.1",
-  "description": "SMOKE POS - NestJS API",
+  "description": "QWIK POS - NestJS API",
   "private": true,
   "scripts": {
     "build": "nest build",

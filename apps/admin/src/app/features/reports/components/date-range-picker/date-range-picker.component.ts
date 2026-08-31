@@ -1,4 +1,4 @@
-import { Component, EventEmitter, Input, Output, signal } from '@angular/core';
+import { Component, EventEmitter, Input, OnInit, Output } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DatePickerModule } from 'primeng/datepicker';
@@ -7,6 +7,18 @@ import { ButtonModule } from 'primeng/button';
 export interface DateRange {
   startDate: string;
   endDate: string;
+}
+
+export function formatLocalDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function parseLocalDate(value: string): Date {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(year, month - 1, day);
 }
 
 @Component({
@@ -116,11 +128,14 @@ export interface DateRange {
     `,
   ],
 })
-export class DateRangePickerComponent {
+export class DateRangePickerComponent implements OnInit {
+  private initialized = false;
+
   @Input() set initialRange(range: DateRange | null) {
     if (range) {
-      this.startDate = new Date(range.startDate);
-      this.endDate = new Date(range.endDate);
+      this.startDate = parseLocalDate(range.startDate);
+      this.endDate = parseLocalDate(range.endDate);
+      if (this.initialized) this.emitRange();
     }
   }
 
@@ -130,9 +145,13 @@ export class DateRangePickerComponent {
   endDate: Date | null = null;
   today = new Date();
 
-  constructor() {
-    // Default to current month
-    this.setThisMonth();
+  ngOnInit(): void {
+    this.initialized = true;
+    if (!this.startDate || !this.endDate) {
+      this.setThisMonth();
+    } else {
+      this.emitRange();
+    }
   }
 
   onDateChange(): void {
@@ -144,7 +163,7 @@ export class DateRangePickerComponent {
   setThisMonth(): void {
     const now = new Date();
     this.startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-    this.endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    this.endDate = now;
     this.emitRange();
   }
 
@@ -158,27 +177,23 @@ export class DateRangePickerComponent {
   setLastThreeMonths(): void {
     const now = new Date();
     this.startDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
-    this.endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    this.endDate = now;
     this.emitRange();
   }
 
   setThisYear(): void {
     const now = new Date();
     this.startDate = new Date(now.getFullYear(), 0, 1);
-    this.endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    this.endDate = now;
     this.emitRange();
   }
 
   private emitRange(): void {
     if (this.startDate && this.endDate) {
       this.rangeChange.emit({
-        startDate: this.formatDate(this.startDate),
-        endDate: this.formatDate(this.endDate),
+        startDate: formatLocalDate(this.startDate),
+        endDate: formatLocalDate(this.endDate),
       });
     }
-  }
-
-  private formatDate(date: Date): string {
-    return date.toISOString().split('T')[0];
   }
 }

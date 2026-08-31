@@ -1,9 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Expense, ExpenseStatus, ExpenseCategory } from '../../expenses/entities/expense.entity';
+import { Expense, ExpenseStatus } from '../../expenses/entities/expense.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { ReportQueryDto } from '../dto/report-query.dto';
+import { formatReportCalendarDate, parseReportDateRange } from '../utils/report-date-range';
 
 export interface ExpenseReportData {
   summary: {
@@ -65,10 +66,7 @@ export class ExpenseReportService {
       throw new NotFoundException('Branch not found');
     }
 
-    const startDateTime = new Date(startDate);
-    startDateTime.setHours(0, 0, 0, 0);
-    const endDateTime = new Date(endDate);
-    endDateTime.setHours(23, 59, 59, 999);
+    const { startDateTime, endDateTime } = parseReportDateRange(startDate, endDate);
 
     // Get summary data
     const allExpenses = await this.expenseRepository
@@ -199,7 +197,7 @@ export class ExpenseReportService {
         amount: e.amount,
         expenseDate:
           e.expenseDate instanceof Date
-            ? e.expenseDate.toISOString().split('T')[0]
+            ? formatReportCalendarDate(e.expenseDate)
             : String(e.expenseDate).split('T')[0],
       })),
       branch: {

@@ -5,9 +5,11 @@ import {
   PurchaseOrder,
   PurchaseOrderStatus,
 } from '../../procurement/entities/purchase-order.entity';
-import { Supplier } from '../../procurement/entities/supplier.entity';
+import { PurchaseOrderItem } from '../../procurement/entities/purchase-order-item.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { ReportQueryDto } from '../dto/report-query.dto';
+import { formatReportCalendarDate, parseReportDateRange } from '../utils/report-date-range';
+import { calculateProcurementSummary } from '../utils/procurement-summary';
 
 export interface ProcurementReportData {
   summary: {
@@ -58,8 +60,8 @@ export class ProcurementReportService {
   constructor(
     @InjectRepository(PurchaseOrder)
     private readonly purchaseOrderRepository: Repository<PurchaseOrder>,
-    @InjectRepository(Supplier)
-    private readonly supplierRepository: Repository<Supplier>,
+    @InjectRepository(PurchaseOrderItem)
+    private readonly purchaseOrderItemRepository: Repository<PurchaseOrderItem>,
     @InjectRepository(Branch)
     private readonly branchRepository: Repository<Branch>
   ) {}
@@ -73,10 +75,7 @@ export class ProcurementReportService {
       throw new NotFoundException('Branch not found');
     }
 
-    const startDateTime = new Date(startDate);
-    startDateTime.setHours(0, 0, 0, 0);
-    const endDateTime = new Date(endDate);
-    endDateTime.setHours(23, 59, 59, 999);
+    const { startDateTime, endDateTime } = parseReportDateRange(startDate, endDate);
 
     // Get summary by status
     const byStatusRaw = await this.purchaseOrderRepository
@@ -92,32 +91,21 @@ export class ProcurementReportService {
       .groupBy('po.status')
       .getRawMany();
 
-    let totalAmount = 0;
-    let totalPurchaseOrders = 0;
-    let pendingApprovalAmount = 0;
-    let approvedAmount = 0;
-    let receivedAmount = 0;
-    let cancelledAmount = 0;
-
-    for (const s of byStatusRaw) {
-      const amount = parseFloat(s.amount) || 0;
-      const count = parseInt(s.count) || 0;
-      totalAmount += amount;
-      totalPurchaseOrders += count;
-
-      if (s.status === PurchaseOrderStatus.PENDING_APPROVAL) {
-        pendingApprovalAmount = amount;
-      } else if (s.status === PurchaseOrderStatus.APPROVED) {
-        approvedAmount = amount;
-      } else if (
-        s.status === PurchaseOrderStatus.RECEIVED ||
-        s.status === PurchaseOrderStatus.PARTIALLY_RECEIVED
-      ) {
-        receivedAmount += amount;
-      } else if (s.status === PurchaseOrderStatus.CANCELLED) {
-        cancelledAmount = amount;
-      }
-    }
+    const receivedResult = await this.purchaseOrderItemRepository
+      .createQueryBuilder('item')
+      .select('COALESCE(SUM(item.received_quantity * item.unit_cost), 0)', 'amount')
+      .innerJoin('item.purchaseOrder', 'po')
+      .where('po.branch_id = :branchId', { branchId })
+      .andWhere('po.created_at BETWEEN :startDate AND :endDate', {
+        startDate: startDateTime,
+        endDate: endDateTime,
+      })
+      .andWhere('po.status != :cancelled', { cancelled: PurchaseOrderStatus.CANCELLED })
+      .getRawOne();
+    const summary = calculateProcurementSummary(
+      byStatusRaw,
+      parseFloat(receivedResult.amount) || 0
+    );
 
     const byStatus = byStatusRaw.map((s) => {
       const amount = parseFloat(s.amount) || 0;
@@ -125,7 +113,7 @@ export class ProcurementReportService {
         status: s.status,
         count: parseInt(s.count) || 0,
         amount,
-        percentage: totalAmount > 0 ? (amount / totalAmount) * 100 : 0,
+        percentage: summary.statusTotalAmount > 0 ? (amount / summary.statusTotalAmount) * 100 : 0,
       };
     });
 
@@ -142,6 +130,7 @@ export class ProcurementReportService {
         startDate: startDateTime,
         endDate: endDateTime,
       })
+      .andWhere('po.status != :cancelled', { cancelled: PurchaseOrderStatus.CANCELLED })
       .groupBy('po.supplier_id')
       .addGroupBy('supplier.name')
       .orderBy('"totalAmount"', 'DESC')
@@ -159,6 +148,7 @@ export class ProcurementReportService {
         startDate: startDateTime,
         endDate: endDateTime,
       })
+      .andWhere('po.status != :cancelled', { cancelled: PurchaseOrderStatus.CANCELLED })
       .groupBy("TO_CHAR(po.created_at, 'YYYY-MM')")
       .orderBy('month', 'ASC')
       .getRawMany();
@@ -180,12 +170,12 @@ export class ProcurementReportService {
 
     return {
       summary: {
-        totalPurchaseOrders,
-        totalAmount,
-        pendingApprovalAmount,
-        approvedAmount,
-        receivedAmount,
-        cancelledAmount,
+        totalPurchaseOrders: summary.totalPurchaseOrders,
+        totalAmount: summary.totalAmount,
+        pendingApprovalAmount: summary.pendingApprovalAmount,
+        approvedAmount: summary.approvedAmount,
+        receivedAmount: summary.receivedAmount,
+        cancelledAmount: summary.cancelledAmount,
       },
       byStatus,
       bySupplier: bySupplier.map((s) => ({
@@ -205,7 +195,7 @@ export class ProcurementReportService {
         supplierName: o.supplierName,
         status: o.po_status,
         totalAmount: parseFloat(o.po_total_amount) || 0,
-        createdAt: new Date(o.po_created_at).toISOString().split('T')[0],
+        createdAt: formatReportCalendarDate(new Date(o.po_created_at)),
       })),
       branch: {
         id: branch.id,

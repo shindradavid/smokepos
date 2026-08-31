@@ -38,16 +38,16 @@ export class Sale extends BaseEntity {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // Deterministic, human-readable ID: MRP-{BRANCH}-{YYYYMM}-{SEQ}
+  // Deterministic, human-readable ID: QWIK-{BRANCH}-{YYYYMM}-{SEQ}
   @Column({ name: 'sale_id', type: 'varchar', length: 50, unique: true })
   saleId: string;
 
-  @Column({ name: 'customer_id', type: 'uuid' })
-  customerId: string;
+  @Column({ name: 'customer_id', type: 'uuid', nullable: true })
+  customerId: string | null;
 
-  @ManyToOne(() => Customer)
+  @ManyToOne(() => Customer, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'customer_id' })
-  customer: Customer;
+  customer: Customer | null;
 
   @Column({ name: 'branch_id', type: 'uuid' })
   branchId: string;

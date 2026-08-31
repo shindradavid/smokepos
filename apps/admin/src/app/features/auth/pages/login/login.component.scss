@@ -2,108 +2,108 @@
 @use '../../../../../styles/mixins' as *;
 
 .login-page {
-    @include flex-center;
-    min-height: 100vh;
-    background: linear-gradient(135deg, $gray-100 0%, $gray-200 100%);
+  @include flex-center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, $brand-surface 0%, rgba($secondary, 0.14) 100%);
 }
 
 .login-card {
-    @include card;
-    width: 100%;
-    max-width: 420px;
-    padding: $spacing-2xl;
-    margin: $spacing-lg;
-    box-shadow: $shadow-lg;
-    border: 1px solid $gray-200;
+  @include card;
+  width: 100%;
+  max-width: 420px;
+  padding: $spacing-2xl;
+  margin: $spacing-lg;
+  box-shadow: $shadow-lg;
+  border: 1px solid $gray-200;
 }
 
 .login-header {
-    text-align: center;
-    margin-bottom: $spacing-md;
+  text-align: center;
+  margin-bottom: $spacing-md;
 }
 
 .logo-wordmark {
-    font-size: $font-size-3xl;
-    font-weight: 800;
-    letter-spacing: 0.04em;
+  font-size: $font-size-3xl;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 
-    .brand-primary {
-        color: $primary;
-    }
+  .brand-primary {
+    color: $primary;
+  }
 
-    .brand-accent {
-        color: $secondary;
-    }
+  .brand-accent {
+    color: $secondary;
+  }
 }
 
 .subtitle {
-    font-size: $font-size-sm;
-    color: $text-muted;
-    margin-top: $spacing-xs;
+  font-size: $font-size-sm;
+  color: $text-muted;
+  margin-top: $spacing-xs;
 }
 
 .login-form {
-    h2 {
-        font-size: $font-size-xl;
-        margin-bottom: $spacing-xs;
-        text-align: center;
-    }
+  h2 {
+    font-size: $font-size-xl;
+    margin-bottom: $spacing-xs;
+    text-align: center;
+  }
 
-    .form-subtitle {
-        font-size: $font-size-sm;
-        color: $text-secondary;
-        text-align: center;
-        margin-bottom: $spacing-lg;
-    }
+  .form-subtitle {
+    font-size: $font-size-sm;
+    color: $text-secondary;
+    text-align: center;
+    margin-bottom: $spacing-lg;
+  }
 }
 
 .form-group {
-    margin-bottom: $spacing-md;
+  margin-bottom: $spacing-md;
 
-    label {
-        display: block;
-        font-size: $font-size-sm;
-        font-weight: 500;
-        margin-bottom: $spacing-xs;
-        color: $text-primary;
-    }
+  label {
+    display: block;
+    font-size: $font-size-sm;
+    font-weight: 500;
+    margin-bottom: $spacing-xs;
+    color: $text-primary;
+  }
 
-    input,
-    ::ng-deep .p-password,
-    ::ng-deep .p-inputtext {
-        width: 100%;
-    }
+  input,
+  ::ng-deep .p-password,
+  ::ng-deep .p-inputtext {
+    width: 100%;
+  }
 
-    ::ng-deep .p-password-input {
-        width: 100%;
-    }
+  ::ng-deep .p-password-input {
+    width: 100%;
+  }
 }
 
 .otp-input {
-    text-align: center;
-    font-size: $font-size-2xl;
-    letter-spacing: 0.5em;
-    font-weight: 600;
+  text-align: center;
+  font-size: $font-size-2xl;
+  letter-spacing: 0.5em;
+  font-weight: 600;
 }
 
 ::ng-deep .w-full {
-    width: 100%;
+  width: 100%;
 }
 
 .back-btn {
-    @include flex-center;
-    gap: $spacing-sm;
-    width: 100%;
-    margin-top: $spacing-md;
-    padding: $spacing-sm;
-    background: transparent;
-    border: none;
-    color: $text-secondary;
-    font-size: $font-size-sm;
-    cursor: pointer;
-    transition: color $transition-fast;
+  @include flex-center;
+  gap: $spacing-sm;
+  width: 100%;
+  margin-top: $spacing-md;
+  padding: $spacing-sm;
+  background: transparent;
+  border: none;
+  color: $text-secondary;
+  font-size: $font-size-sm;
+  cursor: pointer;
+  transition: color $transition-fast;
 
-    &:hover {
-        color: $primary;
-    }
+  &:hover {
+    color: $primary;
+  }
 }

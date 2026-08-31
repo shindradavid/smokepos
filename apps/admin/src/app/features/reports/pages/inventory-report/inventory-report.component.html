@@ -24,15 +24,17 @@
         [loading]="isLoading()"
         (click)="loadReport()"
       ></button>
-      <button
-        pButton
-        label="Export PDF"
-        icon="pi pi-file-pdf"
-        severity="danger"
-        [loading]="isExporting()"
-        [disabled]="!data() || isLoading()"
-        (click)="exportPdf()"
-      ></button>
+      @if (canExport()) {
+        <button
+          pButton
+          label="Export PDF"
+          icon="pi pi-file-pdf"
+          severity="danger"
+          [loading]="isExporting()"
+          [disabled]="!data() || isLoading()"
+          (click)="exportPdf()"
+        ></button>
+      }
     </div>
   </div>
 
@@ -60,8 +62,17 @@
           <i class="pi pi-dollar"></i>
         </div>
         <div class="card-content">
-          <span class="label">Total Stock Value</span>
-          <span class="value">{{ formatCurrency(reportData.summary.totalStockValue) }}</span>
+          <span class="label">Retail Stock Value</span>
+          <span class="value">{{ formatCurrency(reportData.summary.totalRetailValue) }}</span>
+        </div>
+      </div>
+      <div class="summary-card value">
+        <div class="card-icon">
+          <i class="pi pi-wallet"></i>
+        </div>
+        <div class="card-content">
+          <span class="label">Cost Stock Value</span>
+          <span class="value">{{ formatCurrency(reportData.summary.totalCostValue) }}</span>
         </div>
       </div>
       <div class="summary-card low-stock">
@@ -151,7 +162,8 @@
             <th>Category</th>
             <th class="text-right">Products</th>
             <th class="text-right">Total Quantity</th>
-            <th class="text-right">Total Value</th>
+            <th class="text-right">Retail Value</th>
+            <th class="text-right">Cost Value</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-category>
@@ -159,12 +171,13 @@
             <td>{{ category.categoryName }}</td>
             <td class="text-right">{{ category.productCount }}</td>
             <td class="text-right">{{ category.totalQuantity }}</td>
-            <td class="text-right">{{ formatCurrency(category.totalValue) }}</td>
+            <td class="text-right">{{ formatCurrency(category.totalRetailValue) }}</td>
+            <td class="text-right">{{ formatCurrency(category.totalCostValue) }}</td>
           </tr>
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="4" class="text-center text-secondary">No inventory data</td>
+            <td colspan="5" class="text-center text-secondary">No inventory data</td>
           </tr>
         </ng-template>
       </p-table>
@@ -179,8 +192,10 @@
             <tr>
               <th>Product</th>
               <th class="text-right">Quantity</th>
-              <th class="text-right">Unit Price</th>
-              <th class="text-right">Stock Value</th>
+              <th class="text-right">Retail Price</th>
+              <th class="text-right">Unit Cost</th>
+              <th class="text-right">Retail Value</th>
+              <th class="text-right">Cost Value</th>
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-product>
@@ -195,7 +210,9 @@
               </td>
               <td class="text-right">{{ product.quantity }}</td>
               <td class="text-right">{{ formatCurrency(product.price) }}</td>
-              <td class="text-right font-bold">{{ formatCurrency(product.stockValue) }}</td>
+              <td class="text-right">{{ formatCurrency(product.costPrice || 0) }}</td>
+              <td class="text-right font-bold">{{ formatCurrency(product.retailValue) }}</td>
+              <td class="text-right font-bold">{{ formatCurrency(product.costValue) }}</td>
             </tr>
           </ng-template>
         </p-table>

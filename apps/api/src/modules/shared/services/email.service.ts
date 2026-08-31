@@ -16,7 +16,6 @@ export interface SendLoginNotificationDto {
   userAgent?: string;
 }
 
-
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -94,7 +93,7 @@ export class EmailService {
       .join('\n');
 
     const total = sale.total || 0;
-    const text = `Thank you for your business!\n\nHere is your receipt for Sale #${sale.invoiceNumber}\n\nDate: ${new Date(sale.date).toLocaleDateString()}\nTotal: ${total.toLocaleString()}\n\nItems:\n${itemsList}\n\n\nKind Regards,\nSMOKE POS`;
+    const text = `Thank you for your business!\n\nHere is your receipt for Sale #${sale.invoiceNumber}\n\nDate: ${new Date(sale.date).toLocaleDateString()}\nTotal: ${total.toLocaleString()}\n\nItems:\n${itemsList}\n\n\nKind Regards,\nQWIK POS`;
 
     // In development, just log to console instead of sending
     if (this.envService.get('NODE_ENV') !== 'production') {
@@ -157,5 +156,4 @@ export class EmailService {
       throw error;
     }
   }
-
 }

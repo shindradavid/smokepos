@@ -27,13 +27,15 @@ import { StockAdjustmentsQueryDto } from '../dtos/stock-adjustments-query.dto';
 import { PaginationQueryDto } from '../../../common/dto/pagination.dto';
 
 @Controller({ path: 'products', version: '1' })
+@UseGuards(PermissionGuard)
 export class ProductsController {
   constructor(
     private readonly productsService: ProductsService,
-    private readonly stockAdjustmentsService: StockAdjustmentsService,
+    private readonly stockAdjustmentsService: StockAdjustmentsService
   ) {}
 
   @Post()
+  @RequirePermission('product.create')
   @UseInterceptors(FilesInterceptor('images', 10))
   create(
     @Body() createProductDto: CreateProductDto,
@@ -45,24 +47,29 @@ export class ProductsController {
 
   @Get()
   @UsePipes(new ValidationPipe({ transform: true }))
-  findAll(@Query() query: ScopedQueryDto) {
-    return this.productsService.findAll(query);
+  @RequirePermission('product.view')
+  findAll(@Query() query: ScopedQueryDto, @ReqAuthUser() authUser?: AuthUser) {
+    return this.productsService.findAll(query, authUser);
   }
 
   @Get('stock-adjustments/all')
-  @UseGuards(PermissionGuard)
   @RequirePermission('product.view')
   @UsePipes(new ValidationPipe({ transform: true }))
-  getAllStockAdjustments(@Query() query: StockAdjustmentsQueryDto) {
-    return this.stockAdjustmentsService.findAll(query);
+  getAllStockAdjustments(
+    @Query() query: StockAdjustmentsQueryDto,
+    @ReqAuthUser('staffId') staffId?: string | null
+  ) {
+    return this.stockAdjustmentsService.findAll(query, staffId);
   }
 
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.productsService.findOne(id);
+  @RequirePermission('product.view')
+  findOne(@Param('id', ParseUUIDPipe) id: string, @ReqAuthUser() authUser?: AuthUser) {
+    return this.productsService.findOne(id, authUser);
   }
 
   @Patch(':id')
+  @RequirePermission('product.edit')
   @UseInterceptors(FilesInterceptor('images', 10))
   update(
     @Param('id', ParseUUIDPipe) id: string,
@@ -74,12 +81,12 @@ export class ProductsController {
   }
 
   @Delete(':id')
+  @RequirePermission('product.delete')
   remove(@Param('id', ParseUUIDPipe) id: string, @ReqAuthUser() authUser?: AuthUser) {
     return this.productsService.remove(id, authUser);
   }
 
   @Patch(':id/stock')
-  @UseGuards(PermissionGuard)
   @RequirePermission('inventory.adjust')
   updateStock(
     @Param('id', ParseUUIDPipe) id: string,
@@ -90,13 +97,13 @@ export class ProductsController {
   }
 
   @Get(':id/stock-adjustments')
-  @UseGuards(PermissionGuard)
   @RequirePermission('product.view')
   @UsePipes(new ValidationPipe({ transform: true }))
   getStockAdjustments(
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: PaginationQueryDto,
+    @ReqAuthUser('staffId') staffId?: string | null
   ) {
-    return this.stockAdjustmentsService.findByProduct(id, query);
+    return this.stockAdjustmentsService.findByProduct(id, query, staffId);
   }
 }

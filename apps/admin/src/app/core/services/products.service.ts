@@ -27,9 +27,6 @@ export class ProductsService {
     if (query.isActive !== undefined) {
       params = params.set('isActive', query.isActive.toString());
     }
-    if (query.brandId) {
-      params = params.set('brandId', query.brandId);
-    }
     if (query.categoryId) {
       params = params.set('categoryId', query.categoryId);
     }
@@ -62,7 +59,12 @@ export class ProductsService {
     return this.http.delete<void>(`${this.apiUrl}/${id}`);
   }
 
-  updateStock(id: string, quantity: number, reason?: string, costPrice?: number): Observable<Product> {
+  updateStock(
+    id: string,
+    quantity: number,
+    reason?: string,
+    costPrice?: number
+  ): Observable<Product> {
     const body: any = { quantity, reason };
     if (costPrice !== undefined) {
       body.costPrice = costPrice;
@@ -70,10 +72,16 @@ export class ProductsService {
     return this.http.patch<Product>(`${this.apiUrl}/${id}/stock`, body);
   }
 
-  getStockAdjustments(productId: string, query: PaginationQuery): Observable<PaginatedResult<StockAdjustment>> {
+  getStockAdjustments(
+    productId: string,
+    query: PaginationQuery
+  ): Observable<PaginatedResult<StockAdjustment>> {
     const params = new HttpParams()
       .set('page', query.page.toString())
       .set('limit', query.limit.toString());
-    return this.http.get<PaginatedResult<StockAdjustment>>(`${this.apiUrl}/${productId}/stock-adjustments`, { params });
+    return this.http.get<PaginatedResult<StockAdjustment>>(
+      `${this.apiUrl}/${productId}/stock-adjustments`,
+      { params }
+    );
   }
 }

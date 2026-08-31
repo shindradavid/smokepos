@@ -20,7 +20,6 @@ export interface PaginationQuery {
 
 // Extended query for products with additional filters
 export interface ProductsQuery extends PaginationQuery {
-  brandId?: string;
   categoryId?: string;
   stockStatus?: 'in_stock' | 'low_stock' | 'out_of_stock';
   minPrice?: number;

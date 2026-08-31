@@ -5,10 +5,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource, Between, ILike } from 'typeorm';
+import { Repository, DataSource, Between, ILike, In, EntityManager, QueryRunner } from 'typeorm';
 import { Sale, SaleStatus } from '../entities/sale.entity';
 import { SaleItem } from '../entities/sale-item.entity';
-import { SalePayment } from '../entities/sale-payment.entity';
+import { PaymentStatus, SalePayment } from '../entities/sale-payment.entity';
 import { CreateSaleDto } from '../dto/create-sale.dto';
 import { SalesQueryDto } from '../dto/sales-query.dto';
 import { Product } from '../../products/entities/product.entity';
@@ -18,6 +18,7 @@ import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { StockAdjustmentsService } from '../../products/services/stock-adjustments.service';
 import { StockAdjustmentType } from '../../products/entities/stock-adjustment.entity';
 import { format } from 'date-fns';
+import { BranchAccessService } from '../../shared/services/branch-access.service';
 
 @Injectable()
 export class SalesService {
@@ -33,6 +34,7 @@ export class SalesService {
     private readonly dataSource: DataSource,
     private readonly auditLogsService: AuditLogsService,
     private readonly stockAdjustmentsService: StockAdjustmentsService,
+    private readonly branchAccessService: BranchAccessService
   ) {}
 
   async create(createSaleDto: CreateSaleDto, staffId?: string | null): Promise<Sale> {
@@ -41,6 +43,13 @@ export class SalesService {
     }
 
     const { branchId, customerId, items, notes } = createSaleDto;
+
+    await this.branchAccessService.assertCanAccess(staffId, branchId);
+
+    const productIds = items.map((item) => item.productId);
+    if (new Set(productIds).size !== productIds.length) {
+      throw new BadRequestException('A product can only appear once in a sale');
+    }
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -51,9 +60,15 @@ export class SalesService {
       const branch = await queryRunner.manager.findOne(Branch, { where: { id: branchId } });
       if (!branch) throw new NotFoundException('Branch not found');
 
-      // 2. Validate Customer exists
-      const customer = await queryRunner.manager.findOne(Customer, { where: { id: customerId } });
-      if (!customer) throw new NotFoundException('Customer not found');
+      // 2. A customer is optional for fast walk-in POS sales.
+      let customer: Customer | null = null;
+      if (customerId) {
+        customer = await queryRunner.manager.findOne(Customer, { where: { id: customerId } });
+        if (!customer) throw new NotFoundException('Customer not found');
+        if (customer.branchId && customer.branchId !== branchId) {
+          throw new BadRequestException('Customer does not belong to the selected branch');
+        }
+      }
 
       // 3. Generate Deterministic ID with lock to prevent race conditions
       const saleId = await this.generateSaleIdWithLock(queryRunner, branch.slug);
@@ -61,6 +76,19 @@ export class SalesService {
       // 4. Process Items, Validate Stock & Calculate Totals
       let subtotal = 0;
       const saleItems: SaleItem[] = [];
+
+      // Acquire all inventory locks in a stable order to avoid deadlocks when
+      // two sales contain the same products in different UI order.
+      const lockedProducts = await queryRunner.manager
+        .createQueryBuilder(Product, 'product')
+        .where('product.id IN (:...productIds)', { productIds })
+        .orderBy('product.id', 'ASC')
+        .setLock('pessimistic_write')
+        .getMany();
+      if (lockedProducts.length !== productIds.length) {
+        throw new NotFoundException('One or more products were not found');
+      }
+      const lockedProductMap = new Map(lockedProducts.map((product) => [product.id, product]));
 
       // Collect product snapshots for stock adjustment logging after sale is saved
       const stockAdjustmentData: {
@@ -71,12 +99,13 @@ export class SalesService {
       }[] = [];
 
       for (const itemDto of items) {
-        // Lock the product row for update to prevent race conditions
-        const product = await queryRunner.manager.findOne(Product, {
-          where: { id: itemDto.productId },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (!product) throw new NotFoundException(`Product ${itemDto.productId} not found`);
+        const product = lockedProductMap.get(itemDto.productId)!;
+        if (product.branchId !== branchId) {
+          throw new BadRequestException(`Product "${product.name}" does not belong to this branch`);
+        }
+        if (!product.isActive) {
+          throw new BadRequestException(`Product "${product.name}" is inactive`);
+        }
 
         // Validate sufficient stock
         if (product.quantity < itemDto.quantity) {
@@ -118,7 +147,7 @@ export class SalesService {
       const sale = queryRunner.manager.create(Sale, {
         saleId,
         branchId,
-        customerId,
+        customerId: customerId ?? null,
         createdById: staffId,
         status: SaleStatus.PROCESSING,
         customerSource: createSaleDto.customerSource,
@@ -136,13 +165,17 @@ export class SalesService {
       if (createSaleDto.initialPayment && createSaleDto.initialPayment.amount > 0) {
         const { amount, method, reference, notes: paymentNotes } = createSaleDto.initialPayment;
 
+        if (amount > totalAmount) {
+          throw new BadRequestException('Initial payment cannot exceed the sale total');
+        }
+
         const payment = queryRunner.manager.create(SalePayment, {
           saleId: savedSale.id, // Link to saved sale
           amount,
-          method: method as any,
+          method,
           reference,
           notes: paymentNotes || 'Initial payment at sale creation',
-          status: 'confirmed' as any, // Initial payment is auto-confirmed since staff is present
+          status: PaymentStatus.CONFIRMED,
           recordedById: staffId,
           approvedById: staffId,
           approvedAt: new Date(),
@@ -167,24 +200,21 @@ export class SalesService {
       for (let i = 0; i < stockAdjustmentData.length; i++) {
         const adj = stockAdjustmentData[i];
         const itemQty = items[i].quantity;
-        await this.stockAdjustmentsService.createAdjustmentWithManager(
-          queryRunner.manager,
-          {
-            productId: adj.productId,
-            branchId,
-            adjustmentType: StockAdjustmentType.SALE,
-            quantityChange: -itemQty,
-            previousQuantity: adj.previousQty,
-            newQuantity: adj.newQty,
-            unitCost: adj.costPrice,
-            previousCostPrice: adj.costPrice,
-            newCostPrice: adj.costPrice, // Cost doesn't change on sale
-            referenceType: 'sale',
-            referenceId: savedSale.id,
-            referenceCode: saleId,
-            staffId,
-          },
-        );
+        await this.stockAdjustmentsService.createAdjustmentWithManager(queryRunner.manager, {
+          productId: adj.productId,
+          branchId,
+          adjustmentType: StockAdjustmentType.SALE,
+          quantityChange: -itemQty,
+          previousQuantity: adj.previousQty,
+          newQuantity: adj.newQty,
+          unitCost: adj.costPrice,
+          previousCostPrice: adj.costPrice,
+          newCostPrice: adj.costPrice, // Cost doesn't change on sale
+          referenceType: 'sale',
+          referenceId: savedSale.id,
+          referenceCode: saleId,
+          staffId,
+        });
       }
 
       await queryRunner.commitTransaction();
@@ -195,7 +225,7 @@ export class SalesService {
         action: 'CREATE',
         entity: 'sale',
         entityId: sale.id,
-        description: `Created sale ${saleId} for customer ${customer.name}`,
+        description: `Created sale ${saleId} for ${customer?.name ?? 'a walk-in customer'}`,
         details: { saleId, customerId, branchId, totalAmount, itemCount: items.length },
       });
 
@@ -208,7 +238,11 @@ export class SalesService {
     }
   }
 
-  async findAll(query: SalesQueryDto) {
+  async findAll(query: SalesQueryDto, staffId?: string | null) {
+    if (!staffId) {
+      throw new UnauthorizedException('Staff identification required to view sales');
+    }
+
     const {
       page = 1,
       limit = 20,
@@ -226,7 +260,15 @@ export class SalesService {
     if (search) where.saleId = ILike(`%${search}%`);
     if (status) where.status = status;
     if (customerId) where.customerId = customerId;
-    if (branchId) where.branchId = branchId;
+    const accessibleBranchIds = await this.branchAccessService.getAccessibleBranchIds(staffId);
+    if (branchId) {
+      if (!accessibleBranchIds.includes(branchId)) {
+        throw new UnauthorizedException('You do not have access to this branch');
+      }
+      where.branchId = branchId;
+    } else {
+      where.branchId = In(accessibleBranchIds);
+    }
     if (startDate && endDate) {
       where.createdAt = Between(new Date(startDate), new Date(endDate));
     }
@@ -250,12 +292,15 @@ export class SalesService {
     };
   }
 
-  async findOne(id: string): Promise<Sale> {
+  async findOne(id: string, staffId?: string | null): Promise<Sale> {
     const sale = await this.saleRepository.findOne({
       where: { id },
       relations: ['items', 'items.product', 'payments', 'customer', 'branch', 'createdBy'],
     });
     if (!sale) throw new NotFoundException(`Sale with ID ${id} not found`);
+    if (staffId) {
+      await this.branchAccessService.assertCanAccess(staffId, sale.branchId);
+    }
     return sale;
   }
 
@@ -264,70 +309,39 @@ export class SalesService {
       throw new UnauthorizedException('Staff identification required to update sale status');
     }
 
-    const sale = await this.findOne(id);
-    const oldStatus = sale.status;
-
-    // State Machine Validation
-    this.validateStateTransition(sale.status, newStatus, sale.balance);
-
-    // If cancelling, restore stock
-    if (newStatus === SaleStatus.CANCELLED) {
-      await this.restoreStock(sale, staffId);
-    }
-
-    sale.status = newStatus;
-    const updatedSale = await this.saleRepository.save(sale);
-
-    // Audit log
-    await this.auditLogsService.logAction({
-      staffId,
-      action: 'UPDATE_STATUS',
-      entity: 'sale',
-      entityId: sale.id,
-      description: `Changed sale ${sale.saleId} status from ${oldStatus} to ${newStatus}`,
-      details: { saleId: sale.saleId, oldStatus, newStatus },
-    });
-
-    return updatedSale;
-  }
-
-  private async restoreStock(sale: Sale, staffId: string): Promise<void> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
-    try {
-      for (const item of sale.items) {
-        const product = await queryRunner.manager.findOne(Product, {
-          where: { id: item.productId },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (product) {
-          const previousQty = product.quantity;
-          product.quantity += item.quantity;
-          await queryRunner.manager.save(product);
+    let oldStatus: SaleStatus;
+    let saleId: string;
 
-          // Log stock adjustment for cancellation
-          await this.stockAdjustmentsService.createAdjustmentWithManager(
-            queryRunner.manager,
-            {
-              productId: product.id,
-              branchId: sale.branchId,
-              adjustmentType: StockAdjustmentType.SALE_CANCELLATION,
-              quantityChange: item.quantity,
-              previousQuantity: previousQty,
-              newQuantity: product.quantity,
-              unitCost: item.unitCost,
-              previousCostPrice: product.costPrice,
-              newCostPrice: product.costPrice, // Cost doesn't change on cancellation
-              referenceType: 'sale',
-              referenceId: sale.id,
-              referenceCode: sale.saleId,
-              staffId,
-            },
+    try {
+      const sale = await queryRunner.manager.findOne(Sale, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!sale) throw new NotFoundException(`Sale with ID ${id} not found`);
+
+      await this.branchAccessService.assertCanAccess(staffId, sale.branchId);
+      oldStatus = sale.status;
+      saleId = sale.saleId;
+
+      this.validateStateTransition(sale.status, newStatus, sale.balance);
+
+      if (newStatus === SaleStatus.CANCELLED) {
+        if (Number(sale.amountPaid) > 0) {
+          throw new BadRequestException(
+            'A paid sale cannot be cancelled. Record a client-specific refund or credit process instead.'
           );
         }
+
+        sale.items = await queryRunner.manager.find(SaleItem, { where: { saleId: sale.id } });
+        await this.restoreStock(queryRunner.manager, sale, staffId);
       }
+
+      sale.status = newStatus;
+      await queryRunner.manager.save(sale);
       await queryRunner.commitTransaction();
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -335,19 +349,50 @@ export class SalesService {
     } finally {
       await queryRunner.release();
     }
+
+    // Audit log
+    await this.auditLogsService.logAction({
+      staffId,
+      action: 'UPDATE_STATUS',
+      entity: 'sale',
+      entityId: id,
+      description: `Changed sale ${saleId!} status from ${oldStatus!} to ${newStatus}`,
+      details: { saleId: saleId!, oldStatus: oldStatus!, newStatus },
+    });
+
+    return this.findOne(id, staffId);
   }
 
-  async updateBalance(saleId: string, amountPaidDelta: number) {
-    const sale = await this.findOne(saleId);
-    sale.amountPaid = Number(sale.amountPaid) + Number(amountPaidDelta);
-    sale.balance = Number(sale.totalAmount) - Number(sale.amountPaid);
+  private async restoreStock(manager: EntityManager, sale: Sale, staffId: string): Promise<void> {
+    const sortedItems = [...sale.items].sort((a, b) => a.productId.localeCompare(b.productId));
+    for (const item of sortedItems) {
+      const product = await manager.findOne(Product, {
+        where: { id: item.productId },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (product) {
+        const previousQty = product.quantity;
+        product.quantity += item.quantity;
+        await manager.save(product);
 
-    // Auto-complete if Delivered and paid
-    if (sale.status === SaleStatus.DELIVERED && sale.balance <= 0) {
-      sale.status = SaleStatus.COMPLETED;
+        // Log stock adjustment for cancellation
+        await this.stockAdjustmentsService.createAdjustmentWithManager(manager, {
+          productId: product.id,
+          branchId: sale.branchId,
+          adjustmentType: StockAdjustmentType.SALE_CANCELLATION,
+          quantityChange: item.quantity,
+          previousQuantity: previousQty,
+          newQuantity: product.quantity,
+          unitCost: item.unitCost,
+          previousCostPrice: product.costPrice,
+          newCostPrice: product.costPrice, // Cost doesn't change on cancellation
+          referenceType: 'sale',
+          referenceId: sale.id,
+          referenceCode: sale.saleId,
+          staffId,
+        });
+      }
     }
-
-    await this.saleRepository.save(sale);
   }
 
   private validateStateTransition(current: SaleStatus, next: SaleStatus, balance: number) {
@@ -372,14 +417,20 @@ export class SalesService {
     }
   }
 
-  private async generateSaleIdWithLock(queryRunner: any, branchSlug: string): Promise<string> {
+  private async generateSaleIdWithLock(
+    queryRunner: QueryRunner,
+    branchSlug: string
+  ): Promise<string> {
     const slug = branchSlug.toUpperCase();
     const dateStr = format(new Date(), 'yyyyMM');
-    const prefix = `MRP-${slug}-${dateStr}-`;
+    const prefix = `QWIK-${slug}-${dateStr}-`;
 
-    // Use raw query with FOR UPDATE to lock and get the last sale ID atomically
+    // The advisory transaction lock also protects the first sale for a new prefix,
+    // when there is no existing row that SELECT ... FOR UPDATE could lock.
+    await queryRunner.manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [prefix]);
+
     const result = await queryRunner.manager.query(
-      `SELECT sale_id FROM sales WHERE sale_id LIKE $1 ORDER BY sale_id DESC LIMIT 1 FOR UPDATE`,
+      `SELECT sale_id FROM sales WHERE sale_id LIKE $1 ORDER BY sale_id DESC LIMIT 1`,
       [`${prefix}%`]
     );
 

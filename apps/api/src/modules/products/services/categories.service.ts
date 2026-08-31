@@ -1,4 +1,9 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Category } from '../entities/category.entity';
@@ -8,6 +13,7 @@ import { StorageService } from '../../shared/services/storage.service';
 import { generateSlug } from '../../../common/utils/slug.util';
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { AuthUser } from '../../../common/types/auth-user.interface';
+import { BranchAccessService } from '../../shared/services/branch-access.service';
 
 @Injectable()
 export class CategoriesService {
@@ -15,7 +21,8 @@ export class CategoriesService {
     @InjectRepository(Category)
     private categoriesRepository: Repository<Category>,
     private readonly storageService: StorageService,
-    private readonly auditLogsService: AuditLogsService
+    private readonly auditLogsService: AuditLogsService,
+    private readonly branchAccessService: BranchAccessService
   ) {}
 
   async create(
@@ -26,6 +33,7 @@ export class CategoriesService {
     if (!authUser?.staffId) {
       throw new UnauthorizedException('Staff identification required to create categories');
     }
+    await this.branchAccessService.assertCanAccess(authUser.staffId, createCategoryDto.branchId);
 
     if (file) {
       createCategoryDto.image = await this.storageService.uploadImageFile(file, 'categories');
@@ -48,7 +56,12 @@ export class CategoriesService {
     return savedCategory;
   }
 
-  async findAll(query: ScopedQueryDto) {
+  async findAll(query: ScopedQueryDto, authUser?: AuthUser) {
+    if (!authUser?.staffId) {
+      throw new UnauthorizedException('Staff identification required to view categories');
+    }
+    await this.branchAccessService.assertCanAccess(authUser.staffId, query.branchId);
+
     const { page = 1, limit = 20 } = query;
     const skip = (page - 1) * limit;
 
@@ -88,9 +101,12 @@ export class CategoriesService {
     };
   }
 
-  async findOne(id: string): Promise<Category> {
+  async findOne(id: string, authUser?: AuthUser): Promise<Category> {
     const category = await this.categoriesRepository.findOne({ where: { id } });
     if (!category) throw new NotFoundException(`Category with ID ${id} not found`);
+    if (authUser?.staffId) {
+      await this.branchAccessService.assertCanAccess(authUser.staffId, category.branchId);
+    }
     return category;
   }
 
@@ -104,7 +120,10 @@ export class CategoriesService {
       throw new UnauthorizedException('Staff identification required to update categories');
     }
 
-    const category = await this.findOne(id);
+    const category = await this.findOne(id, authUser);
+    if (updateCategoryDto.branchId && updateCategoryDto.branchId !== category.branchId) {
+      throw new BadRequestException('Cannot change a category branch');
+    }
     if (file) {
       updateCategoryDto.image = await this.storageService.uploadImageFile(file, 'categories');
     }
@@ -129,7 +148,7 @@ export class CategoriesService {
       throw new UnauthorizedException('Staff identification required to delete categories');
     }
 
-    const category = await this.findOne(id);
+    const category = await this.findOne(id, authUser);
     await this.categoriesRepository.remove(category);
 
     if (authUser?.staffId) {

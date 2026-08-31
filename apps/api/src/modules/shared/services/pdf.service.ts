@@ -7,15 +7,15 @@ import { format } from 'date-fns';
 
 @Injectable()
 export class PdfService {
-  private readonly companyName = 'SMOKE POS';
+  private readonly companyName = 'QWIK POS';
   private readonly companyAddress = 'Kampala, Uganda';
   private readonly companyPhone = '+256 791 063 897 / +256 759 204 449';
 
   // Brand colors
-  private readonly primaryColor = '#ee1b24';
-  private readonly darkColor = '#172554';
+  private readonly primaryColor = '#263238';
+  private readonly darkColor = '#263238';
   private readonly grayColor = '#64748b';
-  private readonly lightGray = '#f1f5f9';
+  private readonly lightGray = '#fafafa';
 
   constructor(private readonly envService: EnvService) {}
 

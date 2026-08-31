@@ -3,8 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Product } from '../products/entities/product.entity';
 import { Category } from '../products/entities/category.entity';
-import { Brand } from '../products/entities/brand.entity';
-import { SiteProductsQueryDto, SiteCategoriesQueryDto, SiteBrandsQueryDto } from './dto';
+import { SiteProductsQueryDto, SiteCategoriesQueryDto } from './dto';
 import { Branch } from '../branches/entities/branch.entity';
 
 // DTOs are now defined in ./dto/site-query.dto.ts
@@ -16,8 +15,6 @@ export class SiteService {
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Category)
     private readonly categoryRepository: Repository<Category>,
-    @InjectRepository(Brand)
-    private readonly brandRepository: Repository<Brand>,
     @InjectRepository(Branch)
     private readonly branchRepository: Repository<Branch>
   ) {}
@@ -35,7 +32,7 @@ export class SiteService {
    * Get products for the public site (main branch only)
    */
   async getProducts(query: SiteProductsQueryDto = {}) {
-    const { page = 1, limit = 20, category, brand, search } = query;
+    const { page = 1, limit = 20, category, search } = query;
     const skip = (page - 1) * limit;
 
     const mainBranch = await this.getMainBranch();
@@ -45,7 +42,6 @@ export class SiteService {
 
     const qb = this.productRepository
       .createQueryBuilder('product')
-      .leftJoinAndSelect('product.brand', 'brand')
       .leftJoinAndSelect('product.category', 'category')
       .where('product.branchId = :branchId', { branchId: mainBranch.id })
       .andWhere('product.isActive = :isActive', { isActive: true });
@@ -53,11 +49,6 @@ export class SiteService {
     // Filter by category slug
     if (category) {
       qb.andWhere('category.slug = :categorySlug', { categorySlug: category });
-    }
-
-    // Filter by brand slug
-    if (brand) {
-      qb.andWhere('brand.slug = :brandSlug', { brandSlug: brand });
     }
 
     if (search) {
@@ -115,39 +106,6 @@ export class SiteService {
   }
 
   /**
-   * Get brands for the public site (main branch only)
-   */
-  async getBrands(query: SiteBrandsQueryDto = {}) {
-    const { page = 1, limit = 50 } = query;
-    const skip = (page - 1) * limit;
-
-    const mainBranch = await this.getMainBranch();
-    if (!mainBranch) {
-      return { data: [], pagination: { page, limit, total: 0, totalPages: 0 } };
-    }
-
-    const [data, total] = await this.brandRepository.findAndCount({
-      where: {
-        branchId: mainBranch.id,
-        isActive: true,
-      },
-      order: { name: 'ASC' },
-      skip,
-      take: limit,
-    });
-
-    return {
-      data,
-      pagination: {
-        page: Number(page),
-        limit: Number(limit),
-        total,
-        totalPages: Math.ceil(total / limit) || 1,
-      },
-    };
-  }
-
-  /**
    * Get a single product by slug
    */
   async getProductBySlug(slug: string) {
@@ -162,7 +120,7 @@ export class SiteService {
         branchId: mainBranch.id,
         isActive: true,
       },
-      relations: ['brand', 'category'],
+      relations: ['category'],
     });
   }
 

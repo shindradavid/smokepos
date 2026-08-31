@@ -68,15 +68,15 @@
     }
 
     &:hover {
-        background: #f8fafc;
+        background: #FAFAFA;
     }
 
     &.selected {
         background: #eff6ff;
-        color: #3b82f6;
+        color: #009688;
 
         .check-icon {
-            color: #3b82f6;
+            color: #009688;
         }
     }
 

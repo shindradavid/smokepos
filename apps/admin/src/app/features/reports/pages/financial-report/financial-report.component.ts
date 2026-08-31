@@ -7,13 +7,16 @@ import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
+import { Subscription } from 'rxjs';
 
 import { ReportsService } from '../../services/reports.service';
 import { BranchService } from '../../../../core/services/branch.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { FinancialReportData, ReportQuery } from '../../models/report.model';
 import {
   DateRangePickerComponent,
   DateRange,
+  parseLocalDate,
 } from '../../components/date-range-picker/date-range-picker.component';
 
 @Component({
@@ -36,15 +39,19 @@ export class FinancialReportComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly reportsService = inject(ReportsService);
   private readonly branchService = inject(BranchService);
+  private readonly authService = inject(AuthService);
 
   readonly isLoading = signal(false);
   readonly error = signal<string | null>(null);
   readonly data = signal<FinancialReportData | null>(null);
   readonly isExporting = signal(false);
+  readonly canExport = computed(() => this.authService.hasPermission('report.export'));
 
   private currentDateRange: DateRange | null = null;
   private currentQuery: ReportQuery | null = null;
   private isInitialized = false;
+  private reportSubscription?: Subscription;
+  private exportSubscription?: Subscription;
 
   // Effect to reload report when branch changes
   private readonly branchEffect = effect(() => {
@@ -65,12 +72,12 @@ export class FinancialReportComponent implements OnInit, OnDestroy {
         {
           label: 'Revenue',
           data: reportData.monthlyBreakdown.map((m) => m.revenue),
-          backgroundColor: '#22c55e',
+          backgroundColor: '#009688',
         },
         {
           label: 'Expenses',
           data: reportData.monthlyBreakdown.map((m) => m.expenses),
-          backgroundColor: '#dc2626',
+          backgroundColor: '#FFB300',
         },
       ],
     };
@@ -106,8 +113,8 @@ export class FinancialReportComponent implements OnInit, OnDestroy {
           label: 'Daily Profit',
           data: reportData.dailyTrends.map((d) => d.profit),
           fill: true,
-          borderColor: '#3b82f6',
-          backgroundColor: 'rgba(59, 130, 246, 0.1)',
+          borderColor: '#009688',
+          backgroundColor: 'rgba(0, 150, 136, 0.1)',
           tension: 0.4,
         },
       ],
@@ -134,7 +141,7 @@ export class FinancialReportComponent implements OnInit, OnDestroy {
     const reportData = this.data();
     if (!reportData || reportData.expenseByCategory.length === 0) return null;
 
-    const colors = ['#dc2626', '#f59e0b', '#22c55e', '#3b82f6', '#8b5cf6', '#ec4899', '#14b8a6'];
+    const colors = ['#263238', '#FFB300', '#009688', '#263238', '#FFB300', '#009688'];
     return {
       labels: reportData.expenseByCategory.map((e) => this.formatCategoryName(e.category)),
       datasets: [
@@ -165,6 +172,8 @@ export class FinancialReportComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.branchEffect.destroy();
+    this.reportSubscription?.unsubscribe();
+    this.exportSubscription?.unsubscribe();
   }
 
   onDateRangeChange(range: DateRange): void {
@@ -194,7 +203,8 @@ export class FinancialReportComponent implements OnInit, OnDestroy {
     this.isLoading.set(true);
     this.error.set(null);
 
-    this.reportsService.getFinancialReport(this.currentQuery).subscribe({
+    this.reportSubscription?.unsubscribe();
+    this.reportSubscription = this.reportsService.getFinancialReport(this.currentQuery).subscribe({
       next: (data) => {
         this.data.set(data);
         this.isLoading.set(false);
@@ -207,22 +217,26 @@ export class FinancialReportComponent implements OnInit, OnDestroy {
   }
 
   exportPdf(): void {
-    if (!this.currentQuery) return;
+    if (!this.currentQuery || !this.canExport()) return;
 
     this.isExporting.set(true);
 
-    this.reportsService.downloadFinancialReportPdf(this.currentQuery).subscribe({
-      next: (blob) => {
-        this.reportsService.downloadFile(
-          blob,
-          `financial-report-${this.currentQuery!.startDate}-${this.currentQuery!.endDate}.pdf`
-        );
-        this.isExporting.set(false);
-      },
-      error: () => {
-        this.isExporting.set(false);
-      },
-    });
+    this.exportSubscription?.unsubscribe();
+    this.exportSubscription = this.reportsService
+      .downloadFinancialReportPdf(this.currentQuery)
+      .subscribe({
+        next: (blob) => {
+          this.reportsService.downloadFile(
+            blob,
+            `financial-report-${this.currentQuery!.startDate}-${this.currentQuery!.endDate}.pdf`
+          );
+          this.isExporting.set(false);
+        },
+        error: (err) => {
+          this.error.set(err?.error?.message || 'Failed to export financial report');
+          this.isExporting.set(false);
+        },
+      });
   }
 
   goBack(): void {
@@ -251,7 +265,7 @@ export class FinancialReportComponent implements OnInit, OnDestroy {
   }
 
   private formatDateLabel(dateStr: string): string {
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     return date.toLocaleDateString('en-UG', { month: 'short', day: 'numeric' });
   }
 

@@ -7,27 +7,30 @@ import {
   Min,
   IsArray,
   ArrayMinSize,
+  ArrayUnique,
   IsEnum,
+  IsInt,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CustomerSource } from '../entities/sale.entity';
+import { PaymentMethod } from '../entities/sale-payment.entity';
 
 export class CreateSaleItemDto {
   @IsUUID()
   productId: string;
 
-  @IsNumber()
+  @IsInt()
   @Min(1)
   quantity: number;
 }
 
 export class CreateSalePaymentDto {
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   amount: number;
 
-  @IsString()
-  method: string;
+  @IsEnum(PaymentMethod)
+  method: PaymentMethod;
 
   @IsOptional()
   @IsString()
@@ -39,8 +42,9 @@ export class CreateSalePaymentDto {
 }
 
 export class CreateSaleDto {
+  @IsOptional()
   @IsUUID()
-  customerId: string;
+  customerId?: string;
 
   @IsUUID()
   branchId: string;
@@ -52,6 +56,9 @@ export class CreateSaleDto {
   @IsArray()
   @ValidateNested({ each: true })
   @ArrayMinSize(1)
+  @ArrayUnique((item: CreateSaleItemDto) => item.productId, {
+    message: 'A product can only appear once in a sale',
+  })
   @Type(() => CreateSaleItemDto)
   items: CreateSaleItemDto[];
 

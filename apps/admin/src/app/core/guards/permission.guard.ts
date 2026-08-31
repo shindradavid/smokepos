@@ -1,26 +1,23 @@
 import { inject } from '@angular/core';
-import { CanActivateFn, Router, ActivatedRouteSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, CanActivateFn } from '@angular/router';
 import { AuthService } from '../services/auth.service';
-import { MessageService } from 'primeng/api';
 
 export const PermissionGuard: CanActivateFn = (route: ActivatedRouteSnapshot) => {
-    const authService = inject(AuthService);
-    const router = inject(Router);
-    // Note: MessageService usage inside a guard might need specific provider scope, 
-    // often better to redirect or just return false. 
-    // We'll rely on redirect if needed or just false.
+  const authService = inject(AuthService);
 
-    const requiredPermission = route.data['permission'] as string;
+  const requiredPermission = route.data['permission'] as string | undefined;
+  const requiredPermissions = route.data['permissions'] as string[] | undefined;
+  const anyPermissions = route.data['anyPermissions'] as string[] | undefined;
+  const permissions = requiredPermissions ?? (requiredPermission ? [requiredPermission] : []);
 
-    if (!requiredPermission) {
-        return true; // No permission required
-    }
+  if (permissions.length === 0 && !anyPermissions?.length) return true;
 
-    if (authService.hasPermission(requiredPermission)) {
-        return true;
-    }
+  const hasRequiredPermissions = permissions.every((permission) =>
+    authService.hasPermission(permission)
+  );
+  const hasAnyPermission =
+    !anyPermissions?.length ||
+    anyPermissions.some((permission) => authService.hasPermission(permission));
 
-    // Optional: Show toast or redirect
-    // router.navigate(['/dashboard']); 
-    return false;
+  return hasRequiredPermissions && hasAnyPermission;
 };

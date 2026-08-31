@@ -14,6 +14,8 @@ interface NavItem {
   icon: string;
   route: string;
   permission?: string; // Optional permission required to view this item
+  permissions?: string[]; // Optional set of permissions all required to view this item
+  anyPermissions?: string[]; // Optional set where any one permission grants access
   requiresMainBranch?: boolean; // Only show when current branch is main
   badgeKey?: keyof SidebarBadgeCounts; // Link to badge count
 }
@@ -38,6 +40,12 @@ export class SidebarComponent {
     { label: 'Dashboard', icon: 'pi pi-th-large', route: '/dashboard' },
 
     // Sales & Orders
+    {
+      label: 'Point of Sale',
+      icon: 'pi pi-desktop',
+      route: '/pos',
+      permissions: ['sale.create', 'product.view'],
+    },
     { label: 'Sales', icon: 'pi pi-shopping-cart', route: '/sales', permission: 'sale.view' },
     {
       label: 'Sales Payments',
@@ -58,7 +66,6 @@ export class SidebarComponent {
       permission: 'product.view',
     },
     { label: 'Categories', icon: 'pi pi-tags', route: '/categories', permission: 'category.view' },
-    { label: 'Brands', icon: 'pi pi-bookmark', route: '/brands', permission: 'brand.view' },
 
     // Procurement
     {
@@ -76,14 +83,18 @@ export class SidebarComponent {
 
     // Finance
     { label: 'Expenses', icon: 'pi pi-wallet', route: '/expenses', permission: 'expense.view' },
-    { label: 'Reports', icon: 'pi pi-chart-bar', route: '/reports', permission: 'report.view' },
-
     {
-      label: 'Messages',
-      icon: 'pi pi-envelope',
-      route: '/messages',
-      permission: 'message.view',
-      badgeKey: 'messages',
+      label: 'Reports',
+      icon: 'pi pi-chart-bar',
+      route: '/reports',
+      anyPermissions: [
+        'report.view',
+        'report.sales',
+        'report.inventory',
+        'report.procurement',
+        'report.expenses',
+        'report.financial',
+      ],
     },
 
     // Administration
@@ -120,6 +131,12 @@ export class SidebarComponent {
       return false;
     }
     // Check permission
+    if (item.permissions) {
+      return item.permissions.every((permission) => this.authService.hasPermission(permission));
+    }
+    if (item.anyPermissions) {
+      return item.anyPermissions.some((permission) => this.authService.hasPermission(permission));
+    }
     if (!item.permission) return true;
     return this.authService.hasPermission(item.permission);
   }

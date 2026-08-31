@@ -1,5 +1,4 @@
 <div class="customer-details-page">
-  <!-- Back Button -->
   <button
     pButton
     label="Back to Customers"
@@ -17,7 +16,6 @@
     </div>
   } @else if (customer()) {
     <div class="card">
-      <!-- Header -->
       <div class="customer-header">
         <div class="customer-info">
           <div class="customer-avatar">
@@ -56,221 +54,49 @@
         </div>
       </div>
 
-      <!-- Custom Tabs -->
       <div class="tabs-container">
-        <div class="tabs-header">
-          <button
-            class="tab-btn"
-            [class.active]="activeTab === 'overview'"
-            (click)="setActiveTab('overview')"
-          >
-            <i class="pi pi-user"></i> Overview
-          </button>
-          <button
-            class="tab-btn"
-            [class.active]="activeTab === 'vehicles'"
-            (click)="setActiveTab('vehicles')"
-          >
-            <i class="pi pi-car"></i> Vehicles
-          </button>
-        </div>
-
         <div class="tabs-content">
-          <!-- Overview Tab -->
-          @if (activeTab === 'overview') {
-            <div class="tab-panel">
-              <div class="section">
-                <h3>Contact Information</h3>
-                <div class="info-grid">
-                  <div class="info-item">
-                    <label>Phone Number</label>
-                    <span>{{ customer()!.phoneNumber }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Email Address</label>
-                    <span>{{ customer()!.email || 'Not provided' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Address</label>
-                    <span>{{ customer()!.address || 'Not provided' }}</span>
-                  </div>
+          <div class="tab-panel">
+            <div class="section">
+              <h3>Contact Information</h3>
+              <div class="info-grid">
+                <div class="info-item">
+                  <label>Phone Number</label><span>{{ customer()!.phoneNumber }}</span>
                 </div>
-              </div>
-
-              @if (customer()!.notes) {
-                <div class="section">
-                  <h3>Notes</h3>
-                  <p class="notes-text">{{ customer()!.notes }}</p>
+                <div class="info-item">
+                  <label>Email Address</label><span>{{ customer()!.email || 'Not provided' }}</span>
                 </div>
-              }
-
-              <div class="section">
-                <h3>Account Details</h3>
-                <div class="info-grid">
-                  <div class="info-item">
-                    <label>Customer Since</label>
-                    <span>{{ customer()!.createdAt | date: 'mediumDate' }}</span>
-                  </div>
-                  <div class="info-item">
-                    <label>Last Updated</label>
-                    <span>{{ customer()!.updatedAt | date: 'medium' }}</span>
-                  </div>
+                <div class="info-item">
+                  <label>Address</label><span>{{ customer()!.address || 'Not provided' }}</span>
                 </div>
               </div>
             </div>
-          }
 
-          <!-- Vehicles Tab -->
-          @if (activeTab === 'vehicles') {
-            <div class="tab-panel">
-              <div class="section-header">
-                <h3>Customer Vehicles</h3>
-                <button
-                  pButton
-                  label="Add Vehicle"
-                  icon="pi pi-plus"
-                  class="p-button-sm"
-                  (click)="openAddVehicleDialog()"
-                ></button>
+            @if (customer()!.notes) {
+              <div class="section">
+                <h3>Notes</h3>
+                <p class="notes-text">{{ customer()!.notes }}</p>
               </div>
+            }
 
-              @if (customer()!.vehicles && customer()!.vehicles!.length > 0) {
-                <p-table [value]="customer()!.vehicles!">
-                  <ng-template pTemplate="header">
-                    <tr>
-                      <th>Vehicle</th>
-                      <th>Brand</th>
-                      <th>Year</th>
-                      <th>Number Plate</th>
-                      <th>Actions</th>
-                    </tr>
-                  </ng-template>
-                  <ng-template pTemplate="body" let-vehicle>
-                    <tr>
-                      <td>
-                        <div class="vehicle-info">
-                          <span class="vehicle-name">{{ vehicle.name }}</span>
-                          @if (vehicle.color) {
-                            <span class="vehicle-color">{{ vehicle.color }}</span>
-                          }
-                        </div>
-                      </td>
-                      <td>{{ vehicle.brand?.name || '-' }}</td>
-                      <td>{{ vehicle.year }}</td>
-                      <td>{{ vehicle.numberPlate || '-' }}</td>
-                      <td>
-                        <div class="action-buttons">
-                          <button
-                            pButton
-                            icon="pi pi-pencil"
-                            class="p-button-text p-button-sm"
-                            (click)="openEditVehicleDialog(vehicle)"
-                          ></button>
-                          <button
-                            pButton
-                            icon="pi pi-trash"
-                            class="p-button-text p-button-danger p-button-sm"
-                            (click)="deleteVehicle(vehicle)"
-                          ></button>
-                        </div>
-                      </td>
-                    </tr>
-                  </ng-template>
-                </p-table>
-              } @else {
-                <div class="empty-state">
-                  <i class="pi pi-car"></i>
-                  <p>No vehicles registered for this customer.</p>
-                  <button
-                    pButton
-                    label="Add First Vehicle"
-                    icon="pi pi-plus"
-                    class="p-button-outlined"
-                    (click)="openAddVehicleDialog()"
-                  ></button>
+            <div class="section">
+              <h3>Account Details</h3>
+              <div class="info-grid">
+                <div class="info-item">
+                  <label>Customer Since</label>
+                  <span>{{ customer()!.createdAt | date: 'mediumDate' }}</span>
                 </div>
-              }
+                <div class="info-item">
+                  <label>Last Updated</label>
+                  <span>{{ customer()!.updatedAt | date: 'medium' }}</span>
+                </div>
+              </div>
             </div>
-          }
-
+          </div>
         </div>
       </div>
     </div>
   }
-
-  <!-- Vehicle Dialog -->
-  <p-dialog
-    [header]="vehicleDialogMode === 'create' ? 'Add Vehicle' : 'Edit Vehicle'"
-    [(visible)]="showVehicleDialog"
-    [modal]="true"
-    [style]="{ width: '500px' }"
-  >
-    <div class="vehicle-form">
-      <div class="form-group">
-        <label for="vehicleName">Vehicle Name *</label>
-        <input
-          pInputText
-          id="vehicleName"
-          [(ngModel)]="vehicleForm.name"
-          placeholder="e.g., Toyota Corolla"
-        />
-      </div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="vehicleYear">Year *</label>
-          <p-inputNumber
-            id="vehicleYear"
-            [(ngModel)]="vehicleForm.year"
-            [useGrouping]="false"
-            [min]="1900"
-            [max]="2030"
-          ></p-inputNumber>
-        </div>
-        <div class="form-group">
-          <label for="vehicleColor">Color</label>
-          <input
-            pInputText
-            id="vehicleColor"
-            [(ngModel)]="vehicleForm.color"
-            placeholder="e.g., Silver"
-          />
-        </div>
-      </div>
-      <div class="form-group">
-        <label for="vehiclePlate">Number Plate</label>
-        <input
-          pInputText
-          id="vehiclePlate"
-          [(ngModel)]="vehicleForm.numberPlate"
-          placeholder="e.g., KAA 123A"
-        />
-      </div>
-      <div class="form-group">
-        <label for="vehicleVin">VIN Number</label>
-        <input
-          pInputText
-          id="vehicleVin"
-          [(ngModel)]="vehicleForm.vinNumber"
-          placeholder="Vehicle Identification Number"
-        />
-      </div>
-    </div>
-    <ng-template pTemplate="footer">
-      <button
-        pButton
-        label="Cancel"
-        class="p-button-text"
-        (click)="showVehicleDialog = false"
-      ></button>
-      <button
-        pButton
-        label="Save"
-        icon="pi pi-check"
-        (click)="saveVehicle()"
-        [disabled]="!vehicleForm.name || !vehicleForm.year"
-      ></button>
-    </ng-template>
-  </p-dialog>
 
   <p-confirmDialog></p-confirmDialog>
 </div>

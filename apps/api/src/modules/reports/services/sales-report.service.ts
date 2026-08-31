@@ -1,10 +1,11 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Sale, SaleStatus } from '../../sales/entities/sale.entity';
 import { SaleItem } from '../../sales/entities/sale-item.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { ReportQueryDto } from '../dto/report-query.dto';
+import { parseReportDateRange } from '../utils/report-date-range';
 
 export interface SalesReportData {
   summary: {
@@ -64,10 +65,7 @@ export class SalesReportService {
       throw new NotFoundException('Branch not found');
     }
 
-    const startDateTime = new Date(startDate);
-    startDateTime.setHours(0, 0, 0, 0);
-    const endDateTime = new Date(endDate);
-    endDateTime.setHours(23, 59, 59, 999);
+    const { startDateTime, endDateTime } = parseReportDateRange(startDate, endDate);
 
     // Get summary data
     const summaryResult = await this.saleRepository
@@ -155,6 +153,7 @@ export class SalesReportService {
         startDate: startDateTime,
         endDate: endDateTime,
       })
+      .andWhere('sale.status != :cancelled', { cancelled: SaleStatus.CANCELLED })
       .groupBy('sale.status')
       .getRawMany();
 

@@ -3,7 +3,6 @@ import {
   PrimaryGeneratedColumn,
   Column,
   OneToOne,
-  OneToMany,
   ManyToOne,
   JoinColumn,
   CreateDateColumn,
@@ -11,7 +10,6 @@ import {
   BaseEntity,
 } from 'typeorm';
 import { User } from '../../auth/entities/user.entity';
-import { Vehicle } from './vehicle.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 
 @Entity({ name: 'customers' })
@@ -53,11 +51,6 @@ export class Customer extends BaseEntity {
   })
   @JoinColumn({ name: 'user_account_id' })
   user: User | null;
-
-  @OneToMany(() => Vehicle, (vehicle) => vehicle.customer, {
-    cascade: true,
-  })
-  vehicles: Vehicle[];
 
   @Column({ name: 'shipping_address', type: 'text', nullable: true })
   shippingAddress: string | null;

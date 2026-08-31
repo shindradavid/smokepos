@@ -7,11 +7,14 @@ import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
+import { Subscription } from 'rxjs';
 import { TagModule } from 'primeng/tag';
 
 import { ReportsService } from '../../services/reports.service';
 import { BranchService } from '../../../../core/services/branch.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { InventoryReportData } from '../../models/report.model';
+import { formatLocalDate } from '../../components/date-range-picker/date-range-picker.component';
 
 @Component({
   selector: 'app-inventory-report',
@@ -33,11 +36,15 @@ export class InventoryReportComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly reportsService = inject(ReportsService);
   private readonly branchService = inject(BranchService);
+  private readonly authService = inject(AuthService);
 
   readonly isLoading = signal(false);
   readonly error = signal<string | null>(null);
   readonly data = signal<InventoryReportData | null>(null);
   readonly isExporting = signal(false);
+  readonly canExport = computed(() => this.authService.hasPermission('report.export'));
+  private reportSubscription?: Subscription;
+  private exportSubscription?: Subscription;
 
   // Effect to reload report when branch changes
   private readonly branchEffect = effect(() => {
@@ -57,9 +64,9 @@ export class InventoryReportComponent implements OnInit, OnDestroy {
       labels: topCategories.map((c) => c.categoryName),
       datasets: [
         {
-          label: 'Stock Value',
-          data: topCategories.map((c) => c.totalValue),
-          backgroundColor: '#3b82f6',
+          label: 'Retail Value',
+          data: topCategories.map((c) => c.totalRetailValue),
+          backgroundColor: '#009688',
         },
       ],
     };
@@ -88,6 +95,8 @@ export class InventoryReportComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.branchEffect.destroy();
+    this.reportSubscription?.unsubscribe();
+    this.exportSubscription?.unsubscribe();
   }
 
   loadReport(): void {
@@ -100,7 +109,8 @@ export class InventoryReportComponent implements OnInit, OnDestroy {
     this.isLoading.set(true);
     this.error.set(null);
 
-    this.reportsService.getInventoryReport(branchId).subscribe({
+    this.reportSubscription?.unsubscribe();
+    this.reportSubscription = this.reportsService.getInventoryReport(branchId).subscribe({
       next: (data) => {
         this.data.set(data);
         this.isLoading.set(false);
@@ -114,19 +124,21 @@ export class InventoryReportComponent implements OnInit, OnDestroy {
 
   exportPdf(): void {
     const branchId = this.branchService.currentBranchId();
-    if (!branchId) return;
+    if (!branchId || !this.canExport()) return;
 
     this.isExporting.set(true);
 
-    this.reportsService.downloadInventoryReportPdf(branchId).subscribe({
+    this.exportSubscription?.unsubscribe();
+    this.exportSubscription = this.reportsService.downloadInventoryReportPdf(branchId).subscribe({
       next: (blob) => {
         this.reportsService.downloadFile(
           blob,
-          `inventory-report-${new Date().toISOString().split('T')[0]}.pdf`
+          `inventory-report-${formatLocalDate(new Date())}.pdf`
         );
         this.isExporting.set(false);
       },
-      error: () => {
+      error: (err) => {
+        this.error.set(err?.error?.message || 'Failed to export inventory report');
         this.isExporting.set(false);
       },
     });

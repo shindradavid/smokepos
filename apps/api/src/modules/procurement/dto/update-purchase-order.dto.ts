@@ -3,7 +3,7 @@ import { CreatePurchaseOrderDto, CreatePurchaseOrderItemDto } from './create-pur
 import { IsArray, IsOptional, IsUUID, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 
-export class UpdatePurchaseOrderItemDto extends PartialType(CreatePurchaseOrderItemDto) {
+export class UpdatePurchaseOrderItemDto extends CreatePurchaseOrderItemDto {
   @IsOptional()
   @IsUUID()
   id?: string; // Existing item ID for updates

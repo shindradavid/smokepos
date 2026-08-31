@@ -1,13 +1,13 @@
 import { DataSource, DataSourceOptions } from 'typeorm';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { config } from 'dotenv';
+import { join } from 'path';
 
 // Load environment variables for CLI usage
 config();
 
 // Import all entities
 import { EnvService } from './env.config';
-import { Brand } from '../modules/products/entities/brand.entity';
 import { Category } from '../modules/products/entities/category.entity';
 import { Product } from '../modules/products/entities/product.entity';
 import { User } from '../modules/auth/entities/user.entity';
@@ -18,7 +18,6 @@ import { StaffRole } from '../modules/roles/entities/role.entity';
 import { Branch } from '../modules/branches/entities/branch.entity';
 import { AuditLog } from '../modules/audit-logs/entities/audit-log.entity';
 import { Customer } from '../modules/customers/entities/customer.entity';
-import { Vehicle } from '../modules/customers/entities/vehicle.entity';
 import { Sale } from '../modules/sales/entities/sale.entity';
 import { SaleItem } from '../modules/sales/entities/sale-item.entity';
 import { SalePayment } from '../modules/sales/entities/sale-payment.entity';
@@ -28,7 +27,6 @@ import { PurchaseOrderItem } from '../modules/procurement/entities/purchase-orde
 import { PurchaseOrder } from '../modules/procurement/entities/purchase-order.entity';
 import { Wishlist } from '../modules/customers/entities/wishlist.entity';
 import { StockAdjustment } from '../modules/products/entities/stock-adjustment.entity';
-import { Message } from '../modules/messages/entities/message.entity';
 
 // Export all entities for use in scripts
 export const entities = [
@@ -39,12 +37,10 @@ export const entities = [
   StaffRole,
   Branch,
   AuditLog,
-  Brand,
   Category,
   Product,
   StockAdjustment,
   Customer,
-  Vehicle,
   Sale,
   SaleItem,
   SalePayment,
@@ -53,7 +49,6 @@ export const entities = [
   PurchaseOrder,
   PurchaseOrderItem,
   Wishlist,
-  Message,
 ];
 
 // Base database options (shared between app and CLI)
@@ -67,7 +62,7 @@ export const getDataSourceOptions = (): DataSourceOptions => {
     database: process.env.DB_NAME || 'mrpsystem',
     entities,
     synchronize: false,
-    migrations: ['src/migrations/**/*.ts'],
+    migrations: [join(__dirname, '..', 'migrations', '*{.ts,.js}')],
   };
 };
 
@@ -83,7 +78,7 @@ export const getDatabaseConfig = (envService: EnvService): TypeOrmModuleOptions 
     database: envService.get('DB_NAME'),
     entities,
     synchronize: false,
-    migrations: ['src/migrations/**/*.ts'],
+    migrations: [join(__dirname, '..', 'migrations', '*{.ts,.js}')],
   };
 };
 

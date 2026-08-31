@@ -123,7 +123,7 @@
                     <td class="cost-cell">
                       <p-inputNumber
                         formControlName="unitCost"
-                        [min]="0"
+                        [min]="0.01"
                         mode="currency"
                         currency="UGX"
                         locale="en-UG"
@@ -232,7 +232,7 @@
               <span class="name">{{ product.name }}</span>
               <span class="sku">SKU: {{ product.sku || 'N/A' }}</span>
             </div>
-            <span class="price">{{ formatCurrency(product.price) }}</span>
+            <span class="price">Cost: {{ formatCurrency(product.costPrice || 0) }}</span>
           </div>
         }
       }

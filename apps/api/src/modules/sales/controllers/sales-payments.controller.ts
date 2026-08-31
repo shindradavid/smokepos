@@ -40,8 +40,8 @@ export class SalesPaymentsController {
    */
   @Get('payments')
   @RequirePermission('sale.view', 'sale.approve_payment')
-  findAll(@Query() query: PaymentsQueryDto) {
-    return this.paymentsService.findAll(query);
+  findAll(@Query() query: PaymentsQueryDto, @ReqAuthUser('staffId') staffId?: string | null) {
+    return this.paymentsService.findAll(query, staffId);
   }
 
   /**
@@ -49,8 +49,11 @@ export class SalesPaymentsController {
    */
   @Get('payments/stats')
   @RequirePermission('sale.approve_payment')
-  getPendingCount(@Query('branchId', ParseUUIDPipe) branchId: string) {
-    return this.paymentsService.getPendingCount(branchId);
+  getPendingCount(
+    @Query('branchId', ParseUUIDPipe) branchId: string,
+    @ReqAuthUser('staffId') staffId?: string | null
+  ) {
+    return this.paymentsService.getPendingCount(branchId, staffId);
   }
 
   @Post(':id/payments')
@@ -84,8 +87,12 @@ export class SalesPaymentsController {
    */
   @Get('payments/:id/receipt')
   @RequirePermission('sale.view')
-  async getReceipt(@Param('id', ParseUUIDPipe) paymentId: string, @Res() res: Response) {
-    const payment = await this.paymentsService.findOne(paymentId);
+  async getReceipt(
+    @Param('id', ParseUUIDPipe) paymentId: string,
+    @Res() res: Response,
+    @ReqAuthUser('staffId') staffId?: string | null
+  ) {
+    const payment = await this.paymentsService.findOne(paymentId, staffId);
 
     if (payment.status !== PaymentStatus.CONFIRMED) {
       throw new BadRequestException('Receipt can only be generated for confirmed payments');
@@ -108,8 +115,11 @@ export class SalesPaymentsController {
    */
   @Post('payments/:id/receipt/email')
   @RequirePermission('sale.view')
-  async emailReceipt(@Param('id', ParseUUIDPipe) paymentId: string) {
-    const payment = await this.paymentsService.findOne(paymentId);
+  async emailReceipt(
+    @Param('id', ParseUUIDPipe) paymentId: string,
+    @ReqAuthUser('staffId') staffId?: string | null
+  ) {
+    const payment = await this.paymentsService.findOne(paymentId, staffId);
 
     if (payment.status !== PaymentStatus.CONFIRMED) {
       throw new BadRequestException('Receipt can only be generated for confirmed payments');
@@ -125,8 +135,8 @@ export class SalesPaymentsController {
 
     await this.emailService.sendEmailWithPdf(
       payment.sale.customer.email,
-      `Payment Receipt ${receiptId} - SMOKE POS`,
-      `Dear ${payment.sale.customer.name},\n\nPlease find attached your payment receipt ${receiptId} for invoice ${payment.sale.saleId}.\n\nThank you for your payment!\n\nKind Regards,\nSMOKE POS`,
+      `Payment Receipt ${receiptId} - QWIK POS`,
+      `Dear ${payment.sale.customer.name},\n\nPlease find attached your payment receipt ${receiptId} for invoice ${payment.sale.saleId}.\n\nThank you for your payment!\n\nKind Regards,\nQWIK POS`,
       pdfBuffer,
       `receipt-${receiptId}.pdf`
     );

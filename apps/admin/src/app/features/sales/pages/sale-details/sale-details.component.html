@@ -27,7 +27,7 @@
         (click)="updateStatus('completed')"
       ></button>
       <button
-        *ngIf="sale.status !== 'completed' && sale.status !== 'cancelled'"
+        *ngIf="sale.status !== 'completed' && sale.status !== 'cancelled' && sale.amountPaid === 0"
         pButton
         label="Cancel Sale"
         icon="pi pi-times"
@@ -95,14 +95,22 @@
                   {{ item.unitPrice | currency: 'UGX' : 'symbol' : '1.0-0' }}
                 </td>
                 <td class="price-cell">
-                  {{ item.unitCost !== null ? (item.unitCost | currency: 'UGX' : 'symbol' : '1.0-0') : '—' }}
+                  {{
+                    item.unitCost !== null
+                      ? (item.unitCost | currency: 'UGX' : 'symbol' : '1.0-0')
+                      : '—'
+                  }}
                 </td>
                 <td class="qty-cell">{{ item.quantity }}</td>
                 <td class="total-cell">
                   {{ item.unitPrice * item.quantity | currency: 'UGX' : 'symbol' : '1.0-0' }}
                 </td>
                 <td class="total-cell">
-                  <span *ngIf="item.grossProfit !== null" [class.profit-positive]="item.grossProfit > 0" [class.profit-negative]="item.grossProfit < 0">
+                  <span
+                    *ngIf="item.grossProfit !== null"
+                    [class.profit-positive]="item.grossProfit > 0"
+                    [class.profit-negative]="item.grossProfit < 0"
+                  >
                     {{ item.grossProfit | currency: 'UGX' : 'symbol' : '1.0-0' }}
                   </span>
                   <span *ngIf="item.grossProfit === null || item.grossProfit === undefined">—</span>
@@ -121,7 +129,7 @@
             Payments
           </h3>
           <button
-            *ngIf="sale.balance > 0 && authService.hasPermission('sale.create')"
+            *ngIf="sale.balance > 0 && authService.hasPermission('sale.edit')"
             pButton
             label="Record Payment"
             icon="pi pi-plus"
@@ -298,7 +306,11 @@
                 totalCost() | currency: 'UGX' : 'symbol' : '1.0-0'
               }}</span>
             </div>
-            <div class="summary-row" [class.profit-positive]="grossProfit()! > 0" [class.profit-negative]="grossProfit()! < 0">
+            <div
+              class="summary-row"
+              [class.profit-positive]="grossProfit()! > 0"
+              [class.profit-negative]="grossProfit()! < 0"
+            >
               <span class="summary-label">Gross Profit</span>
               <span class="summary-value">{{
                 grossProfit() | currency: 'UGX' : 'symbol' : '1.0-0'
@@ -371,6 +383,7 @@
           mode="currency"
           currency="UGX"
           [min]="1"
+          [max]="sale()?.balance || undefined"
           locale="en-UG"
           placeholder="Enter amount"
           [style]="{ width: '100%' }"

@@ -76,7 +76,7 @@ export interface PaymentsQuery extends PaginationQuery {
 }
 
 export interface CreateSaleDto {
-  customerId: string;
+  customerId?: string;
   branchId: string;
   customerSource?: CustomerSource;
   items: { productId: string; quantity: number }[];
@@ -118,6 +118,7 @@ export class SalesService {
       .set('limit', query.limit.toString());
 
     if (query.status) params = params.set('status', query.status);
+    if (query.search) params = params.set('search', query.search);
     if (query.customerId) params = params.set('customerId', query.customerId);
     if (query.branchId) params = params.set('branchId', query.branchId);
     if (query.startDate) params = params.set('startDate', query.startDate);

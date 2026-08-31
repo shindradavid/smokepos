@@ -39,8 +39,8 @@ export class ExpensesController {
 
   @Get()
   @RequirePermission('expense.view')
-  findAll(@Query() query: ExpensesQueryDto) {
-    return this.expensesService.findAll(query);
+  findAll(@Query() query: ExpensesQueryDto, @ReqAuthUser('staffId') staffId?: string | null) {
+    return this.expensesService.findAll(query, staffId);
   }
 
   @Get('categories')
@@ -51,8 +51,8 @@ export class ExpensesController {
 
   @Get(':id')
   @RequirePermission('expense.view')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.expensesService.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @ReqAuthUser('staffId') staffId?: string | null) {
+    return this.expensesService.findOne(id, staffId);
   }
 
   @Patch(':id')
@@ -64,7 +64,6 @@ export class ExpensesController {
     @UploadedFile() file?: Express.Multer.File,
     @ReqAuthUser('staffId') staffId?: string | null
   ) {
-    console.log(staffId);
     return this.expensesService.update(id, updateExpenseDto, staffId, file);
   }
 

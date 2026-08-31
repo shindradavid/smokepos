@@ -1,175 +1,109 @@
-# Deployment Checklist & Plan
-## Stack: Ubuntu - Node.js - PM2 - Nginx - PostgreSQL
+# QWIK POS deployment checklist
 
-This guide outlines the steps to deploy the **MRP Authentic Auto Parts** monorepo to a production Ubuntu server.
+This repository deploys two applications:
 
----
+- `apps/api`: NestJS API, normally on port `4020`.
+- `apps/admin`: Angular static files served by Nginx.
 
-### 1. Server Prerequisites
-- [ ] **Update System**:
-  ```bash
-  sudo apt update && sudo apt upgrade -y
-  sudo apt install curl git build-essential -y
-  ```
+The API does not modify the database schema automatically. Migrations must be checked and run as an explicit deployment step.
 
-### 2. Install Node.js & PNPM
-- [ ] **Install Node.js 20+** (via NodeSource):
-  ```bash
-  curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
-  sudo apt install -y nodejs
-  ```
-- [ ] **Install Global Tools**:
-  ```bash
-  sudo npm install -g pnpm pm2 @angular/cli @nestjs/cli
-  ```
+## 1. Server prerequisites
 
-### 3. PostgreSQL Setup
-- [ ] **Install PostgreSQL**:
-  ```bash
-  sudo apt install postgresql postgresql-contrib -y
-  ```
-- [ ] **Configure Database**:
-  ```bash
-  sudo -u postgres psql
-  # Inside psql:
-  CREATE DATABASE mrp_db;
-  CREATE USER mrp_user WITH ENCRYPTED PASSWORD 'secure_password_here';
-  GRANT ALL PRIVILEGES ON DATABASE mrp_db TO mrp_user;
-  \q
-  ```
+Install Node.js 20 or newer, pnpm 9, PostgreSQL, Nginx and PM2. Create a dedicated PostgreSQL database and user for the application.
 
-### 4. Application Setup
-- [ ] **Clone & Install**:
-  ```bash
-  # Navigate to target directory, e.g., /var/www
-  cd /var/www
-  git clone <repository_url> mrp-app
-  cd mrp-app
-  pnpm install --frozen-lockfile
-  ```
-- [ ] **Environment Variables**:
-  Create `.env` file in root (copy from `.env.example` and update):
-  ```bash
-  cp .env.example .env
-  nano .env
-  # Update DATABASE_URL=postgresql://mrp_user:secure_password_here@localhost:5432/mrp_db
-  # Update HOST=0.0.0.0 (important for PM2)
-  # Update PORT=3010
-  ```
+## 2. Install and configure
 
-### 5. Build Applications
-- [ ] **Build All Apps**:
-  ```bash
-  pnpm build
-  # Or individually:
-  # pnpm build:api
-  # pnpm build:admin
-  # pnpm build:site
-  ```
-
-### 6. PM2 Configuration (Process Manager)
-Create `ecosystem.config.js` in the project root:
-
-```javascript
-module.exports = {
-  apps: [
-    {
-      name: "mrp-api",
-      script: "dist/apps/api/main.js", // Verifying path below
-      env: {
-        NODE_ENV: "production",
-        PORT: 3010
-      }
-    },
-    {
-      name: "mrp-site-ssr",
-      script: "dist/apps/site/server/server.mjs",
-      env: {
-        NODE_ENV: "production",
-        PORT: 3012
-      }
-    }
-  ]
-};
+```bash
+git clone <repository-url> /var/www/smoke-pos
+cd /var/www/smoke-pos
+pnpm install --frozen-lockfile
+cp apps/api/.env.example apps/api/.env
 ```
-*Note: Verify exact dist paths after build. Standard NestJS build goes to `dist/apps/api/main.js` in monorepos, but check `tsconfig`.*
 
-- [ ] **Start PM2**:
-  ```bash
-  pm2 start ecosystem.config.js
-  pm2 save
-  pm2 startup
-  ```
+Set production database, JWT, storage, mail and CORS values in `apps/api/.env`. Keep this file outside source control and restrict it to the deployment user.
 
-### 7. Nginx Configuration
-- [ ] **Install Nginx**:
-  ```bash
-  sudo apt install nginx -y
-  ```
-- [ ] **Configure Sites**:
-  Create `/etc/nginx/sites-available/mrp-app`:
+## 3. Back up and migrate
 
-  ```nginx
-  # 1. API (api.mrpauthenticautoparts.com)
-  server {
-      server_name api.mrpauthenticautoparts.com;
+Take a PostgreSQL backup before every migration and verify periodically that backups can be restored to a separate database.
 
-      location / {
-          proxy_pass http://localhost:3010;
-          proxy_http_version 1.1;
-          proxy_set_header Upgrade $http_upgrade;
-          proxy_set_header Connection 'upgrade';
-          proxy_set_header Host $host;
-          proxy_cache_bypass $http_upgrade;
-      }
-  }
+```bash
+cd /var/www/smoke-pos
+pnpm --filter @smoke-pos/api run migration:show
+pnpm --filter @smoke-pos/api run migration:run
+pnpm --filter @smoke-pos/api run migration:show
+```
 
-  # 2. Admin Dashboard (admin.mrpauthenticautoparts.com)
-  server {
-      server_name admin.mrpauthenticautoparts.com;
-      root /var/www/mrp-app/dist/apps/admin/browser; # Verify static path
-      index index.html;
+After migration, every entry shown by `migration:show` should be marked `[X]`.
 
-      location / {
-          try_files $uri $uri/ /index.html;
-      }
-  }
+## 4. Build
 
-  # 3. Customer Site SSR (mrpauthenticautoparts.com)
-  server {
-      server_name mrpauthenticautoparts.com www.mrpauthenticautoparts.com;
+```bash
+cd /var/www/smoke-pos
+pnpm build:api
+pnpm build:admin
+```
 
-      location / {
-          proxy_pass http://localhost:3012;
-          proxy_http_version 1.1;
-          proxy_set_header Upgrade $http_upgrade;
-          proxy_set_header Connection 'upgrade';
-          proxy_set_header Host $host;
-          proxy_cache_bypass $http_upgrade;
-      }
-  }
-  ```
+Expected outputs:
 
-- [ ] **Enable & Restart**:
-  ```bash
-  sudo ln -s /etc/nginx/sites-available/mrp-app /etc/nginx/sites-enabled/
-  sudo nginx -t
-  sudo systemctl restart nginx
-  ```
+- API: `apps/api/dist/main.js`
+- Admin: `apps/admin/dist/admin/browser/`
 
-### 8. SSL (Certbot)
-- [ ] **Install Certbot**:
-  ```bash
-  sudo apt install certbot python3-certbot-nginx -y
-  ```
-- [ ] **Generate Certificates**:
-  ```bash
-  sudo certbot --nginx -d mrpauthenticautoparts.com -d www.mrpauthenticautoparts.com -d admin.mrpauthenticautoparts.com -d api.mrpauthenticautoparts.com
-  ```
+## 5. Start the API
 
-### 9. Final Steps
-- [ ] **Seed Database**:
-  ```bash
-  pnpm seed:admin
-  ```
-- [ ] **Verify Endpoints**: Check all URLs in browser.
+```bash
+cd /var/www/smoke-pos
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup
+```
+
+Use `pm2 logs qwik-pos-api` to confirm startup. The health check is `GET /v1/health` and should report both `status: ok` and `database: connected`.
+
+## 6. Nginx
+
+Use the actual API and admin hostnames for the client installation.
+
+```nginx
+server {
+    server_name api.example.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:4020;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+server {
+    server_name pos.example.com;
+    root /var/www/smoke-pos/apps/admin/dist/admin/browser;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
+```
+
+Enable TLS with the server's certificate automation and allow only required inbound ports.
+
+## 7. Go-live verification
+
+- Confirm `/v1/health` succeeds through Nginx.
+- Log in with a non-owner staff account and confirm it cannot access an unassigned branch.
+- Create a test sale, confirm the stock deduction, approve a payment and download its receipt.
+- Cancel an unpaid test sale and confirm stock is restored once.
+- Receive a partial purchase order and confirm quantity and weighted-average cost.
+- Run the API and admin test suites.
+- Record the deployed commit, migration status and backup location.
+
+The initial administrator seed is for a new installation only:
+
+```bash
+pnpm seed:admin
+```
+
+Change seeded credentials immediately and do not rerun the seed casually on a configured client installation.

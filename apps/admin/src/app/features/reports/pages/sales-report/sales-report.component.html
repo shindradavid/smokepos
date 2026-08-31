@@ -16,15 +16,17 @@
       </div>
     </div>
     <div class="header-actions">
-      <button
-        pButton
-        label="Export PDF"
-        icon="pi pi-file-pdf"
-        severity="danger"
-        [loading]="isExporting()"
-        [disabled]="!data() || isLoading()"
-        (click)="exportPdf()"
-      ></button>
+      @if (canExport()) {
+        <button
+          pButton
+          label="Export PDF"
+          icon="pi pi-file-pdf"
+          severity="danger"
+          [loading]="isExporting()"
+          [disabled]="!data() || isLoading()"
+          (click)="exportPdf()"
+        ></button>
+      }
     </div>
   </div>
 
@@ -53,11 +55,11 @@
       </div>
       <div class="summary-card tax">
         <div class="card-icon">
-          <i class="pi pi-percentage"></i>
+          <i class="pi pi-chart-line"></i>
         </div>
         <div class="card-content">
-          <span class="label">Total Tax</span>
-          <span class="value">{{ formatCurrency(reportData.summary.totalTax) }}</span>
+          <span class="label">Gross Profit</span>
+          <span class="value">{{ formatCurrency(reportData.summary.grossProfit) }}</span>
         </div>
       </div>
       <div class="summary-card sales">
@@ -74,8 +76,8 @@
           <i class="pi pi-chart-bar"></i>
         </div>
         <div class="card-content">
-          <span class="label">Avg Order Value</span>
-          <span class="value">{{ formatCurrency(reportData.summary.averageOrderValue) }}</span>
+          <span class="label">Cost of Goods Sold</span>
+          <span class="value">{{ formatCurrency(reportData.summary.costOfGoodsSold) }}</span>
         </div>
       </div>
     </div>
@@ -118,6 +120,8 @@
             <th>Product</th>
             <th class="text-right">Qty Sold</th>
             <th class="text-right">Revenue</th>
+            <th class="text-right">COGS</th>
+            <th class="text-right">Gross Profit</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-product>
@@ -125,11 +129,13 @@
             <td>{{ product.productName }}</td>
             <td class="text-right">{{ product.quantitySold }}</td>
             <td class="text-right">{{ formatCurrency(product.revenue) }}</td>
+            <td class="text-right">{{ formatCurrency(product.cost) }}</td>
+            <td class="text-right">{{ formatCurrency(product.profit) }}</td>
           </tr>
         </ng-template>
         <ng-template pTemplate="emptymessage">
           <tr>
-            <td colspan="3" class="text-center text-secondary">No sales data for this period</td>
+            <td colspan="5" class="text-center text-secondary">No sales data for this period</td>
           </tr>
         </ng-template>
       </p-table>

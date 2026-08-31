@@ -8,7 +8,6 @@ import { BranchService } from './branch.service';
 
 export interface SidebarBadgeCounts {
   salesPayments: number;
-  messages: number;
 }
 
 @Injectable({
@@ -24,12 +23,10 @@ export class SidebarBadgeService implements OnDestroy {
 
   // Badge counts signals
   readonly salesPaymentsCount = signal(0);
-  readonly messagesCount = signal(0);
 
   // Computed map for easy access by key
   readonly badgeCounts = computed<SidebarBadgeCounts>(() => ({
     salesPayments: this.salesPaymentsCount(),
-    messages: this.messagesCount(),
   }));
 
   constructor() {
@@ -85,25 +82,14 @@ export class SidebarBadgeService implements OnDestroy {
         .pipe(catchError(() => of({ pending: 0 })));
     }
 
-    if (
-      this.authService.hasPermission('message.view') ||
-      this.authService.hasPermission('message.read')
-    ) {
-      requests['messages'] = this.http
-        .get<{ unread: number }>(`${environment.apiUrl}/messages/unread-count`)
-        .pipe(catchError(() => of({ unread: 0 })));
-    }
-
     // If no requests to make, reset all counts
     if (Object.keys(requests).length === 0) {
       this.salesPaymentsCount.set(0);
-      this.messagesCount.set(0);
       return;
     }
 
     forkJoin(requests).subscribe((results: any) => {
       this.salesPaymentsCount.set(results['salesPayments']?.pending ?? 0);
-      this.messagesCount.set(results['messages']?.unread ?? 0);
     });
   }
 

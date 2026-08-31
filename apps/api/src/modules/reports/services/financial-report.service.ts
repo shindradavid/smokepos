@@ -7,6 +7,7 @@ import { Expense, ExpenseStatus } from '../../expenses/entities/expense.entity';
 import { Branch } from '../../branches/entities/branch.entity';
 import { Product } from '../../products/entities/product.entity';
 import { ReportQueryDto } from '../dto/report-query.dto';
+import { parseReportDateRange } from '../utils/report-date-range';
 
 export interface FinancialReportData {
   summary: {
@@ -78,10 +79,7 @@ export class FinancialReportService {
       throw new NotFoundException('Branch not found');
     }
 
-    const startDateTime = new Date(startDate);
-    startDateTime.setHours(0, 0, 0, 0);
-    const endDateTime = new Date(endDate);
-    endDateTime.setHours(23, 59, 59, 999);
+    const { startDateTime, endDateTime } = parseReportDateRange(startDate, endDate);
 
     // Get total revenue (sales excluding cancelled)
     const revenueResult = await this.saleRepository
@@ -297,6 +295,23 @@ export class FinancialReportService {
       .orderBy('amount', 'DESC')
       .getRawMany();
 
+    const revenueByCategory = await this.saleItemRepository
+      .createQueryBuilder('item')
+      .select("COALESCE(category.name, 'Uncategorized')", 'category')
+      .addSelect('COALESCE(SUM(item.quantity * item.unit_price), 0)', 'amount')
+      .innerJoin('item.sale', 'sale')
+      .innerJoin('item.product', 'product')
+      .leftJoin('product.category', 'category')
+      .where('sale.branch_id = :branchId', { branchId })
+      .andWhere('sale.created_at BETWEEN :startDate AND :endDate', {
+        startDate: startDateTime,
+        endDate: endDateTime,
+      })
+      .andWhere('sale.status != :cancelled', { cancelled: SaleStatus.CANCELLED })
+      .groupBy("COALESCE(category.name, 'Uncategorized')")
+      .orderBy('amount', 'DESC')
+      .getRawMany();
+
     return {
       summary: {
         totalRevenue,
@@ -311,7 +326,14 @@ export class FinancialReportService {
       },
       monthlyBreakdown,
       dailyTrends,
-      revenueByCategory: [], // Sales don't have categories in this system
+      revenueByCategory: revenueByCategory.map((entry) => {
+        const amount = parseFloat(entry.amount) || 0;
+        return {
+          category: entry.category,
+          amount,
+          percentage: totalRevenue > 0 ? (amount / totalRevenue) * 100 : 0,
+        };
+      }),
       expenseByCategory: expenseByCategory.map((e) => {
         const amount = parseFloat(e.amount) || 0;
         return {

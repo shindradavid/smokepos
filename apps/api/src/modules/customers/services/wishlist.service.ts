@@ -35,7 +35,7 @@ export class WishlistService {
   async getWishlist(customerId: string) {
     const items = await this.wishlistRepository.find({
       where: { customerId },
-      relations: ['product', 'product.brand', 'product.category'],
+      relations: ['product', 'product.category'],
       order: { createdAt: 'DESC' },
     });
 

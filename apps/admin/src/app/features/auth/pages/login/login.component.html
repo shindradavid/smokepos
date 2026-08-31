@@ -1,71 +1,106 @@
 <div class="login-page">
-    <div class="login-card">
-        <!-- Logo -->
-        <div class="login-header">
-            <div class="logo-wordmark" aria-label="SMOKE POS"><span class="brand-primary">SMOKE</span> <span class="brand-accent">POS</span></div>
-            <p class="subtitle">Admin Portal</p>
+  <div class="login-card">
+    <!-- Logo -->
+    <div class="login-header">
+      <div class="logo-wordmark" aria-label="QWIK POS">
+        <span class="brand-primary">QWIK</span> <span class="brand-accent">POS</span>
+      </div>
+      <p class="subtitle">Admin Portal</p>
+    </div>
+
+    <!-- Error Message -->
+    @if (errorMessage) {
+      <p-message severity="error" [text]="errorMessage" styleClass="w-full mb-sm"></p-message>
+    }
+
+    <!-- Step 1: Credentials -->
+    @if (step === 'credentials') {
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmitCredentials()" class="login-form">
+        <h2>Sign In</h2>
+
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input
+            id="email"
+            type="email"
+            pInputText
+            formControlName="email"
+            placeholder="you@example.com"
+          />
+          @if (loginForm.get('email')?.touched && loginForm.get('email')?.errors?.['required']) {
+            <small class="error">Email is required</small>
+          }
+          @if (loginForm.get('email')?.touched && loginForm.get('email')?.errors?.['email']) {
+            <small class="error">Please enter a valid email</small>
+          }
         </div>
 
-        <!-- Error Message -->
-        @if (errorMessage) {
-        <p-message severity="error" [text]="errorMessage" styleClass="w-full mb-sm"></p-message>
-        }
+        <div class="form-group">
+          <label for="password">Password</label>
+          <p-password
+            id="password"
+            formControlName="password"
+            [toggleMask]="true"
+            [feedback]="false"
+            placeholder="Enter your password"
+            styleClass="w-full"
+          ></p-password>
+          @if (
+            loginForm.get('password')?.touched && loginForm.get('password')?.errors?.['required']
+          ) {
+            <small class="error">Password is required</small>
+          }
+          @if (
+            loginForm.get('password')?.touched && loginForm.get('password')?.errors?.['minlength']
+          ) {
+            <small class="error">Password must be at least 8 characters</small>
+          }
+        </div>
 
-        <!-- Step 1: Credentials -->
-        @if (step === 'credentials') {
-        <form [formGroup]="loginForm" (ngSubmit)="onSubmitCredentials()" class="login-form">
-            <h2>Sign In</h2>
+        <p-button
+          type="submit"
+          label="Continue"
+          [loading]="isLoading"
+          [disabled]="loginForm.invalid"
+          styleClass="w-full p-button-primary"
+        ></p-button>
+      </form>
+    }
 
-            <div class="form-group">
-                <label for="email">Email</label>
-                <input id="email" type="email" pInputText formControlName="email" placeholder="you@example.com" />
-                @if (loginForm.get('email')?.touched && loginForm.get('email')?.errors?.['required']) {
-                <small class="error">Email is required</small>
-                }
-                @if (loginForm.get('email')?.touched && loginForm.get('email')?.errors?.['email']) {
-                <small class="error">Please enter a valid email</small>
-                }
-            </div>
+    <!-- Step 2: OTP -->
+    @if (step === 'otp') {
+      <form [formGroup]="otpForm" (ngSubmit)="onSubmitOtp()" class="login-form">
+        <h2>Verify OTP</h2>
+        <p class="form-subtitle">Enter the 6-digit code sent to your email</p>
 
-            <div class="form-group">
-                <label for="password">Password</label>
-                <p-password id="password" formControlName="password" [toggleMask]="true" [feedback]="false"
-                    placeholder="Enter your password" styleClass="w-full"></p-password>
-                @if (loginForm.get('password')?.touched && loginForm.get('password')?.errors?.['required']) {
-                <small class="error">Password is required</small>
-                }
-                @if (loginForm.get('password')?.touched && loginForm.get('password')?.errors?.['minlength']) {
-                <small class="error">Password must be at least 8 characters</small>
-                }
-            </div>
+        <div class="form-group">
+          <label for="otp">One-Time Password</label>
+          <input
+            id="otp"
+            type="text"
+            pInputText
+            formControlName="otp"
+            placeholder="000000"
+            maxlength="6"
+            class="otp-input"
+          />
+          @if (otpForm.get('otp')?.touched && otpForm.get('otp')?.errors?.['required']) {
+            <small class="error">OTP is required</small>
+          }
+        </div>
 
-            <p-button type="submit" label="Continue" [loading]="isLoading" [disabled]="loginForm.invalid"
-                styleClass="w-full p-button-primary"></p-button>
-        </form>
-        }
+        <p-button
+          type="submit"
+          label="Verify & Sign In"
+          [loading]="isLoading"
+          [disabled]="otpForm.invalid"
+          styleClass="w-full p-button-primary"
+        ></p-button>
 
-        <!-- Step 2: OTP -->
-        @if (step === 'otp') {
-        <form [formGroup]="otpForm" (ngSubmit)="onSubmitOtp()" class="login-form">
-            <h2>Verify OTP</h2>
-            <p class="form-subtitle">Enter the 6-digit code sent to your email</p>
-
-            <div class="form-group">
-                <label for="otp">One-Time Password</label>
-                <input id="otp" type="text" pInputText formControlName="otp" placeholder="000000" maxlength="6"
-                    class="otp-input" />
-                @if (otpForm.get('otp')?.touched && otpForm.get('otp')?.errors?.['required']) {
-                <small class="error">OTP is required</small>
-                }
-            </div>
-
-            <p-button type="submit" label="Verify & Sign In" [loading]="isLoading" [disabled]="otpForm.invalid"
-                styleClass="w-full p-button-primary"></p-button>
-
-            <button type="button" class="back-btn" (click)="goBack()">
-                <i class="pi pi-arrow-left"></i> Back to login
-            </button>
-        </form>
-        }
-    </div>
+        <button type="button" class="back-btn" (click)="goBack()">
+          <i class="pi pi-arrow-left"></i> Back to login
+        </button>
+      </form>
+    }
+  </div>
 </div>

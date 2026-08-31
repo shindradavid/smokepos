@@ -45,14 +45,14 @@ export class PurchaseOrdersController {
 
   @Get()
   @RequirePermission('purchaseOrder.view')
-  findAll(@Query() query: PurchaseOrdersQueryDto) {
-    return this.purchaseOrdersService.findAll(query);
+  findAll(@Query() query: PurchaseOrdersQueryDto, @ReqAuthUser('staffId') staffId?: string | null) {
+    return this.purchaseOrdersService.findAll(query, staffId);
   }
 
   @Get(':id')
   @RequirePermission('purchaseOrder.view')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.purchaseOrdersService.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @ReqAuthUser('staffId') staffId?: string | null) {
+    return this.purchaseOrdersService.findOne(id, staffId);
   }
 
   @Patch(':id')
@@ -115,9 +115,14 @@ export class PurchaseOrdersController {
   @Get(':id/pdf')
   @RequirePermission('purchaseOrder.view')
   @Header('Content-Type', 'application/pdf')
-  async exportPdf(@Param('id', ParseUUIDPipe) id: string, @Res() res: Response) {
+  async exportPdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Res() res: Response,
+    @ReqAuthUser('staffId') staffId?: string | null
+  ) {
+    await this.purchaseOrdersService.findOne(id, staffId);
     const pdfBuffer = await this.pdfService.generatePdf(id);
-    const po = await this.purchaseOrdersService.findOne(id);
+    const po = await this.purchaseOrdersService.findOne(id, staffId);
 
     res.set({
       'Content-Type': 'application/pdf',

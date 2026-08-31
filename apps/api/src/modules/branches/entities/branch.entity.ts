@@ -35,14 +35,14 @@ export class Branch extends BaseEntity {
   @Column({ name: 'is_main', type: 'boolean', default: false })
   isMain: boolean;
 
-  @Column({ name: 'accent_color', type: 'varchar', length: 20, default: 'red' })
+  @Column({ name: 'accent_color', type: 'varchar', length: 20, default: '#263238' })
   accentColor: string;
 
   @Column({
     name: 'txt_on_accent_color',
     type: 'varchar',
     length: 20,
-    default: 'white',
+    default: '#FAFAFA',
   })
   txtOnAccentColor: string;
 

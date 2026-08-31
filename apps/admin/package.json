@@ -1,12 +1,12 @@
 {
   "name": "@smoke-pos/admin",
   "version": "0.0.1",
-  "description": "SMOKE POS - Admin Dashboard",
+  "description": "QWIK POS - Admin Dashboard",
   "private": true,
   "scripts": {
     "ng": "ng",
-    "start": "ng serve --port 4021",
-    "dev": "ng serve --port 4021",
+    "start": "ng serve",
+    "dev": "ng serve",
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "lint": "ng lint",

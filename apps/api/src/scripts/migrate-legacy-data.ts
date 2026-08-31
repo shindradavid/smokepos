@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
-import { Brand } from '../modules/products/entities/brand.entity';
 import { Category } from '../modules/products/entities/category.entity';
 import { Product } from '../modules/products/entities/product.entity';
 import { Branch } from '../modules/branches/entities/branch.entity';
@@ -62,58 +61,15 @@ async function bootstrap() {
 
   // 2. Load JSON Data
   const dataDir = path.join(__dirname, '../../data');
-  const brandsData = JSON.parse(fs.readFileSync(path.join(dataDir, 'brands.json'), 'utf-8'));
   const categoriesData = JSON.parse(
     fs.readFileSync(path.join(dataDir, 'categories.json'), 'utf-8')
   );
   const productsData = JSON.parse(fs.readFileSync(path.join(dataDir, 'products.json'), 'utf-8'));
 
   // Identity Maps
-  const brandMap = new Map<string, string>(); // Name -> UUID
   const categoryMap = new Map<string, string>(); // Name -> UUID
 
-  // 3. Migrate Brands
-  const brandRepo = dataSource.getRepository(Brand);
-  let keptBrands = 0;
-  let createdBrands = 0;
-
-  for (const item of brandsData) {
-    const slug = item.slug || generateSlug(item.name);
-    // Check existing by slug OR name
-    let brand = await brandRepo.findOne({
-      where: [{ slug: slug }, { name: item.name }],
-    });
-
-    if (brand) {
-      keptBrands++;
-    } else {
-      // Download logo if present
-      let logoUrl = null;
-      if (item.logo) {
-        const file = await downloadImage(item.logo);
-        if (file) {
-          logoUrl = await storageService.uploadImageFile(file, 'brands');
-        }
-      }
-
-      brand = brandRepo.create({
-        name: item.name,
-        slug: slug,
-        description: item.description,
-        logoUrl: logoUrl || undefined,
-        isActive: item.isActive,
-        branch: mainBranch,
-        branchId: branchId,
-      });
-      await brandRepo.save(brand);
-      createdBrands++;
-    }
-    brandMap.set(item.name, brand.id);
-    brandMap.set(slug, brand.id); // Store slug too for redundant lookup
-  }
-  logger.log(`Brands: Created ${createdBrands}, Skipped/Found ${keptBrands}`);
-
-  // 4. Migrate Categories
+  // 3. Migrate Categories
   const categoryRepo = dataSource.getRepository(Category);
   let keptCats = 0;
   let createdCats = 0;
@@ -154,7 +110,7 @@ async function bootstrap() {
   }
   logger.log(`Categories: Created ${createdCats}, Skipped/Found ${keptCats}`);
 
-  // 5. Migrate Products
+  // 4. Migrate Products
   const productRepo = dataSource.getRepository(Product);
   let keptProds = 0;
   let createdProds = 0;
@@ -186,14 +142,6 @@ async function bootstrap() {
       // Also check item.images array if exists? JSON shows "images": null usually.
       // Ignoring "images" array for now as per JSON sample.
 
-      // Lookup Brand/Category
-      // JSON "brand" is a name string e.g. "Mercedes-Benz"
-      // JSON "category" is a name string e.g. "Brake Pads"
-
-      // Try matching by exact name, or slugified name (handle null/undefined)
-      const brandId = item.brand
-        ? brandMap.get(item.brand) || brandMap.get(generateSlug(item.brand))
-        : undefined;
       const categoryId = item.category
         ? categoryMap.get(item.category) || categoryMap.get(generateSlug(item.category))
         : undefined;
@@ -215,7 +163,6 @@ async function bootstrap() {
         images: images,
         branch: mainBranch,
         branchId: branchId,
-        brandId: brandId || undefined,
         categoryId: categoryId || undefined,
       });
 

@@ -8,6 +8,10 @@ import {
   IsNumber,
   Min,
   IsEnum,
+  IsIn,
+  ArrayMinSize,
+  ArrayUnique,
+  IsInt,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { PurchaseOrderStatus } from '../entities/purchase-order.entity';
@@ -16,12 +20,12 @@ export class CreatePurchaseOrderItemDto {
   @IsUUID()
   productId: string;
 
-  @IsNumber()
+  @IsInt()
   @Min(1)
   quantity: number;
 
   @IsNumber()
-  @Min(0)
+  @Min(0.01)
   unitCost: number;
 }
 
@@ -42,9 +46,14 @@ export class CreatePurchaseOrderDto {
 
   @IsOptional()
   @IsEnum(PurchaseOrderStatus)
+  @IsIn([PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.PENDING_APPROVAL])
   status?: PurchaseOrderStatus;
 
   @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique((item: CreatePurchaseOrderItemDto) => item.productId, {
+    message: 'A product can only appear once in a purchase order',
+  })
   @ValidateNested({ each: true })
   @Type(() => CreatePurchaseOrderItemDto)
   items: CreatePurchaseOrderItemDto[];

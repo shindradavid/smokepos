@@ -1,0 +1,370 @@
+<p-toast position="top-right"></p-toast>
+
+<section class="pos-page">
+  <header class="pos-toolbar">
+    <div class="pos-title-block">
+      <span class="pos-kicker">QWIK POS</span>
+      <div class="pos-title-row">
+        <h1>New Sale</h1>
+        <span class="branch-pill">
+          <i class="pi pi-building"></i>
+          {{ branchService.currentBranchName() || 'No branch selected' }}
+        </span>
+      </div>
+    </div>
+
+    <label class="product-search-shell" for="pos-product-search">
+      <i class="pi pi-search"></i>
+      <input
+        #productSearch
+        id="pos-product-search"
+        type="search"
+        [(ngModel)]="productSearchTerm"
+        (ngModelChange)="onProductSearch()"
+        (keydown.enter)="addFirstSearchResult()"
+        placeholder="Search product name or SKU..."
+        autocomplete="off"
+      />
+      @if (productSearchTerm) {
+        <button
+          type="button"
+          class="clear-search"
+          (click)="clearProductSearch()"
+          aria-label="Clear search"
+        >
+          <i class="pi pi-times"></i>
+        </button>
+      }
+      <kbd>F2</kbd>
+    </label>
+
+    <div class="toolbar-shortcuts" aria-label="Keyboard shortcuts">
+      <span><kbd>Enter</kbd> Add first result</span>
+      <span><kbd>F4</kbd> Complete sale</span>
+    </div>
+  </header>
+
+  @if (lastSale()) {
+    <div class="sale-success-banner">
+      <div class="success-icon"><i class="pi pi-check"></i></div>
+      <div>
+        <strong>Sale saved</strong>
+        <span
+          >{{ lastSale()!.saleId }} ·
+          {{ lastSale()!.totalAmount | currency: 'UGX' : 'symbol' : '1.0-0' }}</span
+        >
+      </div>
+      <div class="success-actions">
+        @if (canViewSales()) {
+          <button type="button" class="text-action" (click)="viewLastSale()">View sale</button>
+        }
+        <button type="button" class="icon-action" (click)="dismissLastSale()" aria-label="Dismiss">
+          <i class="pi pi-times"></i>
+        </button>
+      </div>
+    </div>
+  }
+
+  <div class="pos-workspace">
+    <section class="catalog-panel" aria-label="Product catalog">
+      <div class="panel-heading">
+        <div>
+          <h2>Products</h2>
+          <span>{{ products().length }} results</span>
+        </div>
+        <button
+          type="button"
+          class="refresh-button"
+          (click)="loadProducts()"
+          pTooltip="Refresh products"
+          tooltipPosition="left"
+        >
+          <i class="pi pi-refresh" [class.pi-spin]="productsLoading"></i>
+        </button>
+      </div>
+
+      @if (productsLoading && products().length === 0) {
+        <div class="product-grid loading-grid">
+          @for (placeholder of [1, 2, 3, 4, 5, 6, 7, 8]; track placeholder) {
+            <div class="product-card-skeleton">
+              <span class="skeleton-image"></span>
+              <span class="skeleton-line wide"></span>
+              <span class="skeleton-line"></span>
+            </div>
+          }
+        </div>
+      } @else if (products().length === 0) {
+        <div class="empty-catalog">
+          <i class="pi pi-search"></i>
+          <h3>No products found</h3>
+          <p>Try another name or SKU.</p>
+          @if (productSearchTerm) {
+            <button type="button" (click)="clearProductSearch()">Clear search</button>
+          }
+        </div>
+      } @else {
+        <div class="product-grid">
+          @for (product of products(); track trackProduct($index, product)) {
+            <button
+              type="button"
+              class="product-card"
+              [class.out-of-stock]="product.quantity < 1"
+              [disabled]="product.quantity < 1"
+              (click)="addProduct(product)"
+            >
+              <span class="product-image">
+                @if (getProductImage(product); as imageUrl) {
+                  <img [src]="imageUrl" [alt]="product.name" />
+                } @else {
+                  <span class="product-initial">{{ getProductInitial(product) }}</span>
+                }
+                <span class="add-indicator"><i class="pi pi-plus"></i></span>
+              </span>
+              <span class="product-copy">
+                <strong>{{ product.name }}</strong>
+                <small>{{ product.sku || 'No SKU' }}</small>
+              </span>
+              <span class="product-meta">
+                <strong>{{ product.price | currency: 'UGX' : 'symbol' : '1.0-0' }}</strong>
+                <small
+                  [class.low-stock]="
+                    product.quantity > 0 && product.quantity <= product.lowStockThreshold
+                  "
+                >
+                  @if (product.quantity < 1) {
+                    Out of stock
+                  } @else if (canViewQuantity()) {
+                    {{ product.quantity }} in stock
+                  } @else {
+                    In stock
+                  }
+                </small>
+              </span>
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    <aside class="cart-drawer" aria-label="Current sale">
+      <div class="cart-heading">
+        <div>
+          <span class="cart-eyebrow">Current sale</span>
+          <h2>
+            Cart <span>{{ itemCount() }}</span>
+          </h2>
+        </div>
+        <button
+          type="button"
+          class="clear-cart-button"
+          [disabled]="cart().length === 0"
+          (click)="clearCart()"
+        >
+          Clear
+        </button>
+      </div>
+
+      <button
+        type="button"
+        class="customer-selector"
+        [disabled]="!canViewCustomers()"
+        (click)="openCustomerPicker()"
+      >
+        <span class="customer-avatar">
+          <i [class]="selectedCustomer() ? 'pi pi-user' : 'pi pi-user-plus'"></i>
+        </span>
+        <span class="customer-copy">
+          <small>Customer</small>
+          <strong>{{ selectedCustomer()?.name || 'Walk-in customer' }}</strong>
+          @if (selectedCustomer()?.phoneNumber) {
+            <span>{{ selectedCustomer()!.phoneNumber }}</span>
+          } @else {
+            <span>{{
+              canViewCustomers() ? 'Tap to attach a customer' : 'Quick walk-in sale'
+            }}</span>
+          }
+        </span>
+        <i class="pi pi-chevron-right"></i>
+      </button>
+
+      <div class="cart-lines">
+        @if (cart().length === 0) {
+          <div class="empty-cart">
+            <span><i class="pi pi-shopping-cart"></i></span>
+            <h3>Cart is empty</h3>
+            <p>Search or tap a product to add it.</p>
+          </div>
+        } @else {
+          @for (item of cart(); track trackCartItem($index, item)) {
+            <article class="cart-line">
+              <div class="cart-line-top">
+                <div class="cart-product-copy">
+                  <strong>{{ item.product.name }}</strong>
+                  <small
+                    >{{ item.product.price | currency: 'UGX' : 'symbol' : '1.0-0' }} each</small
+                  >
+                </div>
+                <button
+                  type="button"
+                  class="remove-line"
+                  (click)="removeItem(item.product.id)"
+                  aria-label="Remove item"
+                >
+                  <i class="pi pi-trash"></i>
+                </button>
+              </div>
+              <div class="cart-line-bottom">
+                <div class="quantity-stepper">
+                  <button
+                    type="button"
+                    (click)="decreaseQuantity(item)"
+                    aria-label="Decrease quantity"
+                  >
+                    <i class="pi pi-minus"></i>
+                  </button>
+                  <input
+                    #quantityInput
+                    type="number"
+                    min="1"
+                    step="1"
+                    [max]="item.product.quantity"
+                    [value]="item.quantity"
+                    (change)="setQuantity(item.product.id, quantityInput.valueAsNumber)"
+                    aria-label="Quantity"
+                  />
+                  <button
+                    type="button"
+                    (click)="increaseQuantity(item)"
+                    aria-label="Increase quantity"
+                  >
+                    <i class="pi pi-plus"></i>
+                  </button>
+                </div>
+                <strong class="line-total">
+                  {{ item.product.price * item.quantity | currency: 'UGX' : 'symbol' : '1.0-0' }}
+                </strong>
+              </div>
+            </article>
+          }
+        }
+      </div>
+
+      <div class="checkout-panel">
+        <div class="total-row">
+          <span>Total</span>
+          <strong>{{ subtotal() | currency: 'UGX' : 'symbol' : '1.0-0' }}</strong>
+        </div>
+
+        <div class="payment-methods" aria-label="Payment method">
+          @for (option of paymentOptions; track option.value) {
+            <button
+              type="button"
+              [class.active]="paymentMethod() === option.value"
+              (click)="selectPaymentMethod(option.value)"
+            >
+              <i [class]="option.icon"></i>
+              <span>{{ option.label }}</span>
+            </button>
+          }
+        </div>
+
+        @if (paymentMethod() !== 'pay_later') {
+          <label class="tendered-field">
+            <span>{{ paymentMethod() === 'cash' ? 'Cash received' : 'Amount paid' }}</span>
+            <div>
+              <span>UGX</span>
+              <input
+                type="number"
+                min="0"
+                step="1"
+                [ngModel]="amountTendered()"
+                (ngModelChange)="amountTendered.set($event)"
+              />
+              <button type="button" (click)="setFullPayment()">Full</button>
+            </div>
+          </label>
+        }
+
+        @if (changeDue() > 0) {
+          <div class="change-row">
+            <span>Change due</span>
+            <strong>{{ changeDue() | currency: 'UGX' : 'symbol' : '1.0-0' }}</strong>
+          </div>
+        }
+
+        <button
+          type="button"
+          class="checkout-button"
+          [disabled]="!canCheckout()"
+          (click)="checkout()"
+        >
+          @if (isSubmitting()) {
+            <i class="pi pi-spin pi-spinner"></i>
+            Saving sale...
+          } @else {
+            <span>
+              <small>{{ paymentMethod() === 'pay_later' ? 'SAVE SALE' : 'CHARGE' }}</small>
+              <strong>{{ subtotal() | currency: 'UGX' : 'symbol' : '1.0-0' }}</strong>
+            </span>
+            <kbd>F4</kbd>
+          }
+        </button>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<p-dialog
+  header="Select customer"
+  [(visible)]="showCustomerDialog"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '560px', maxWidth: 'calc(100vw - 32px)' }"
+  styleClass="pos-customer-dialog"
+>
+  <div class="customer-dialog-content">
+    <label class="customer-search">
+      <i class="pi pi-search"></i>
+      <input
+        type="search"
+        [(ngModel)]="customerSearchTerm"
+        (ngModelChange)="onCustomerSearch()"
+        placeholder="Search name, phone or email..."
+        autocomplete="off"
+      />
+    </label>
+
+    <button type="button" class="walk-in-option" (click)="useWalkInCustomer()">
+      <span><i class="pi pi-bolt"></i></span>
+      <div>
+        <strong>Walk-in customer</strong>
+        <small>Continue without creating a customer profile</small>
+      </div>
+      <i class="pi pi-chevron-right"></i>
+    </button>
+
+    <div class="customer-results">
+      @if (customersLoading) {
+        <div class="customer-loading">
+          <i class="pi pi-spin pi-spinner"></i> Loading customers...
+        </div>
+      } @else if (customerResults().length === 0) {
+        <div class="no-customers">No matching customers found.</div>
+      } @else {
+        @for (customer of customerResults(); track customer.id) {
+          <button type="button" class="customer-result" (click)="selectCustomer(customer)">
+            <span class="result-avatar">{{ customer.name.charAt(0).toUpperCase() }}</span>
+            <span>
+              <strong>{{ customer.name }}</strong>
+              <small
+                >{{ customer.phoneNumber }}{{ customer.email ? ' · ' + customer.email : '' }}</small
+              >
+            </span>
+            <i class="pi pi-chevron-right"></i>
+          </button>
+        }
+      }
+    </div>
+  </div>
+</p-dialog>

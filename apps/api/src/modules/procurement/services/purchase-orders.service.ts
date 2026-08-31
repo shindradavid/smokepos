@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, ILike, In, DataSource } from 'typeorm';
+import { Repository, ILike, In, DataSource, QueryRunner } from 'typeorm';
 import { PurchaseOrder, PurchaseOrderStatus } from '../entities/purchase-order.entity';
 import { PurchaseOrderItem } from '../entities/purchase-order-item.entity';
 import { Branch } from '../../branches/entities/branch.entity';
@@ -22,6 +22,8 @@ import { createPaginationMeta } from '../../../common/dto/pagination.dto';
 import { AuditLogsService } from '../../audit-logs/audit-logs.service';
 import { StockAdjustmentsService } from '../../products/services/stock-adjustments.service';
 import { StockAdjustmentType } from '../../products/entities/stock-adjustment.entity';
+import { BranchAccessService } from '../../shared/services/branch-access.service';
+import { calculatePurchaseOrderTotal } from '../utils/purchase-order-total';
 
 @Injectable()
 export class PurchaseOrdersService {
@@ -39,25 +41,22 @@ export class PurchaseOrdersService {
     private readonly auditLogsService: AuditLogsService,
     private readonly dataSource: DataSource,
     private readonly stockAdjustmentsService: StockAdjustmentsService,
+    private readonly branchAccessService: BranchAccessService
   ) {}
 
   /**
    * Generate PO number: PO-{BRANCH_SLUG}-{YYYYMM}-{SEQ}
    */
-  private async generatePoNumber(branchId: string): Promise<string> {
-    const branch = await this.branchRepository.findOne({ where: { id: branchId } });
-    if (!branch) {
-      throw new BadRequestException('Invalid branch');
-    }
-
+  private async generatePoNumber(queryRunner: QueryRunner, branch: Branch): Promise<string> {
     const branchCode = branch.slug.toUpperCase().replace(/-/g, '');
     const now = new Date();
     const yearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
     const prefix = `PO-${branchCode}-${yearMonth}-`;
 
-    // Find the highest sequence number for this prefix
-    const lastPo = await this.poRepository
-      .createQueryBuilder('po')
+    await queryRunner.manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [prefix]);
+
+    const lastPo = await queryRunner.manager
+      .createQueryBuilder(PurchaseOrder, 'po')
       .where('po.poNumber LIKE :prefix', { prefix: `${prefix}%` })
       .orderBy('po.poNumber', 'DESC')
       .getOne();
@@ -69,13 +68,6 @@ export class PurchaseOrdersService {
     }
 
     return `${prefix}${String(sequence).padStart(3, '0')}`;
-  }
-
-  /**
-   * Calculate total amount from items
-   */
-  private calculateTotalAmount(items: { quantity: number; unitCost: number }[]): number {
-    return items.reduce((sum, item) => sum + item.quantity * item.unitCost, 0);
   }
 
   /**
@@ -95,65 +87,88 @@ export class PurchaseOrdersService {
       throw new UnauthorizedException('Staff identification required to create purchase orders');
     }
 
-    // Validate branch
-    const branch = await this.branchRepository.findOne({ where: { id: createDto.branchId } });
-    if (!branch) {
-      throw new BadRequestException('Invalid branch');
-    }
+    await this.branchAccessService.assertCanAccess(staffId, createDto.branchId);
 
-    // Validate supplier belongs to branch
-    const supplier = await this.supplierRepository.findOne({
-      where: { id: createDto.supplierId, branchId: createDto.branchId },
-    });
-    if (!supplier) {
-      throw new BadRequestException('Supplier not found or does not belong to this branch');
-    }
-
-    // Validate products and build items
     const productIds = createDto.items.map((item) => item.productId);
-    const products = await this.productRepository.find({
-      where: { id: In(productIds) },
-    });
-
-    if (products.length !== productIds.length) {
-      throw new BadRequestException('One or more products not found');
+    if (new Set(productIds).size !== productIds.length) {
+      throw new BadRequestException('A product can only appear once in a purchase order');
     }
 
-    const productMap = new Map(products.map((p) => [p.id, p]));
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Generate PO number
-    const poNumber = await this.generatePoNumber(createDto.branchId);
+    let saved!: PurchaseOrder;
 
-    // Create items with product snapshots
-    const items = createDto.items.map((itemDto) => {
-      const product = productMap.get(itemDto.productId)!;
-      return this.poItemRepository.create({
-        productId: itemDto.productId,
-        productName: product.name,
-        productSku: product.sku,
-        quantity: itemDto.quantity,
-        unitCost: itemDto.unitCost,
-        receivedQuantity: 0,
+    try {
+      // Validate branch
+      const branch = await queryRunner.manager.findOne(Branch, {
+        where: { id: createDto.branchId },
       });
-    });
+      if (!branch) {
+        throw new BadRequestException('Invalid branch');
+      }
 
-    const totalAmount = this.calculateTotalAmount(createDto.items);
+      // Validate supplier belongs to branch
+      const supplier = await queryRunner.manager.findOne(Supplier, {
+        where: { id: createDto.supplierId, branchId: createDto.branchId },
+      });
+      if (!supplier) {
+        throw new BadRequestException('Supplier not found or does not belong to this branch');
+      }
 
-    const po = this.poRepository.create({
-      poNumber,
-      supplierId: createDto.supplierId,
-      branchId: createDto.branchId,
-      status: createDto.status || PurchaseOrderStatus.DRAFT,
-      expectedDeliveryDate: createDto.expectedDeliveryDate
-        ? new Date(createDto.expectedDeliveryDate)
-        : null,
-      notes: createDto.notes,
-      totalAmount,
-      createdById: staffId,
-      items,
-    });
+      const products = await queryRunner.manager.find(Product, {
+        where: { id: In(productIds) },
+      });
 
-    const saved = await this.poRepository.save(po);
+      if (products.length !== productIds.length) {
+        throw new BadRequestException('One or more products not found');
+      }
+      if (products.some((product) => product.branchId !== createDto.branchId)) {
+        throw new BadRequestException('All products must belong to the purchase order branch');
+      }
+
+      const productMap = new Map(products.map((p) => [p.id, p]));
+
+      const poNumber = await this.generatePoNumber(queryRunner, branch);
+
+      // Create items with product snapshots
+      const items = createDto.items.map((itemDto) => {
+        const product = productMap.get(itemDto.productId)!;
+        return queryRunner.manager.create(PurchaseOrderItem, {
+          productId: itemDto.productId,
+          productName: product.name,
+          productSku: product.sku,
+          quantity: itemDto.quantity,
+          unitCost: itemDto.unitCost,
+          receivedQuantity: 0,
+        });
+      });
+
+      const totalAmount = calculatePurchaseOrderTotal(createDto.items);
+
+      const po = queryRunner.manager.create(PurchaseOrder, {
+        poNumber,
+        supplierId: createDto.supplierId,
+        branchId: createDto.branchId,
+        status: createDto.status || PurchaseOrderStatus.DRAFT,
+        expectedDeliveryDate: createDto.expectedDeliveryDate
+          ? new Date(createDto.expectedDeliveryDate)
+          : null,
+        notes: createDto.notes,
+        totalAmount,
+        createdById: staffId,
+        items,
+      });
+
+      saved = await queryRunner.manager.save(po);
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
 
     // Audit log
     await this.auditLogsService.logAction({
@@ -169,10 +184,14 @@ export class PurchaseOrdersService {
       },
     });
 
-    return this.findOne(saved.id);
+    return this.findOne(saved.id, staffId);
   }
 
-  async findAll(query: PurchaseOrdersQueryDto) {
+  async findAll(query: PurchaseOrdersQueryDto, staffId?: string | null) {
+    if (!staffId) {
+      throw new UnauthorizedException('Staff identification required to view purchase orders');
+    }
+
     const { page = 1, limit = 20, branchId, supplierId, status, search } = query;
     const skip = (page - 1) * limit;
 
@@ -183,8 +202,12 @@ export class PurchaseOrdersService {
       .leftJoinAndSelect('po.createdBy', 'createdBy')
       .leftJoinAndSelect('po.approvedBy', 'approvedBy');
 
+    const accessibleBranchIds = await this.branchAccessService.getAccessibleBranchIds(staffId);
     if (branchId) {
+      await this.branchAccessService.assertCanAccess(staffId, branchId);
       queryBuilder.andWhere('po.branchId = :branchId', { branchId });
+    } else {
+      queryBuilder.andWhere('po.branchId IN (:...accessibleBranchIds)', { accessibleBranchIds });
     }
 
     if (supplierId) {
@@ -211,7 +234,7 @@ export class PurchaseOrdersService {
     };
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, staffId?: string | null) {
     const po = await this.poRepository.findOne({
       where: { id },
       relations: ['supplier', 'branch', 'createdBy', 'approvedBy', 'items', 'items.product'],
@@ -219,6 +242,10 @@ export class PurchaseOrdersService {
 
     if (!po) {
       throw new NotFoundException('Purchase order not found');
+    }
+
+    if (staffId) {
+      await this.branchAccessService.assertCanAccess(staffId, po.branchId);
     }
 
     return po;
@@ -229,78 +256,98 @@ export class PurchaseOrdersService {
       throw new UnauthorizedException('Staff identification required to update purchase orders');
     }
 
-    const po = await this.findOne(id);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    // Validate status allows editing
-    this.validateEditableStatus(po.status);
+    let updated!: PurchaseOrder;
 
-    // Update basic fields
-    if (updateDto.supplierId) {
-      // Validate supplier belongs to same branch
-      const supplier = await this.supplierRepository.findOne({
-        where: { id: updateDto.supplierId, branchId: po.branchId },
+    try {
+      const po = await queryRunner.manager.findOne(PurchaseOrder, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
       });
-      if (!supplier) {
-        throw new BadRequestException('Supplier not found or does not belong to this branch');
-      }
-      po.supplierId = updateDto.supplierId;
-    }
+      if (!po) throw new NotFoundException('Purchase order not found');
 
-    if (updateDto.expectedDeliveryDate !== undefined) {
-      po.expectedDeliveryDate = updateDto.expectedDeliveryDate
-        ? new Date(updateDto.expectedDeliveryDate)
-        : null;
-    }
+      await this.branchAccessService.assertCanAccess(staffId, po.branchId);
+      this.validateEditableStatus(po.status);
 
-    if (updateDto.notes !== undefined) {
-      po.notes = updateDto.notes;
-    }
-
-    if (updateDto.status !== undefined) {
-      // Only allow changing to draft or pending_approval
-      if (
-        updateDto.status !== PurchaseOrderStatus.DRAFT &&
-        updateDto.status !== PurchaseOrderStatus.PENDING_APPROVAL
-      ) {
-        throw new BadRequestException('Can only set status to draft or pending_approval');
-      }
-      po.status = updateDto.status;
-    }
-
-    // Update items if provided
-    if (updateDto.items) {
-      // Validate products
-      const productIds = updateDto.items.map((item) => item.productId).filter(Boolean) as string[];
-      const products = await this.productRepository.find({ where: { id: In(productIds) } });
-      const productMap = new Map(products.map((p) => [p.id, p]));
-
-      // Remove existing items
-      await this.poItemRepository.delete({ purchaseOrderId: po.id });
-
-      // Create new items
-      const newItems = updateDto.items.map((itemDto) => {
-        const product = productMap.get(itemDto.productId!);
-        if (!product) {
-          throw new BadRequestException(`Product not found: ${itemDto.productId}`);
-        }
-        return this.poItemRepository.create({
-          purchaseOrderId: po.id,
-          productId: itemDto.productId!,
-          productName: product.name,
-          productSku: product.sku,
-          quantity: itemDto.quantity!,
-          unitCost: itemDto.unitCost!,
-          receivedQuantity: 0,
+      if (updateDto.supplierId) {
+        const supplier = await queryRunner.manager.findOne(Supplier, {
+          where: { id: updateDto.supplierId, branchId: po.branchId },
         });
-      });
+        if (!supplier) {
+          throw new BadRequestException('Supplier not found or does not belong to this branch');
+        }
+        po.supplierId = updateDto.supplierId;
+      }
 
-      await this.poItemRepository.save(newItems);
-      po.totalAmount = this.calculateTotalAmount(
-        updateDto.items.map((i) => ({ quantity: i.quantity!, unitCost: i.unitCost! }))
-      );
+      if (updateDto.expectedDeliveryDate !== undefined) {
+        po.expectedDeliveryDate = updateDto.expectedDeliveryDate
+          ? new Date(updateDto.expectedDeliveryDate)
+          : null;
+      }
+
+      if (updateDto.notes !== undefined) {
+        po.notes = updateDto.notes;
+      }
+
+      if (updateDto.status !== undefined) {
+        if (
+          updateDto.status !== PurchaseOrderStatus.DRAFT &&
+          updateDto.status !== PurchaseOrderStatus.PENDING_APPROVAL
+        ) {
+          throw new BadRequestException('Can only set status to draft or pending_approval');
+        }
+        po.status = updateDto.status;
+      }
+
+      if (updateDto.items) {
+        if (updateDto.items.length === 0) {
+          throw new BadRequestException('Purchase order must contain at least one item');
+        }
+
+        const productIds = updateDto.items.map((item) => item.productId);
+        if (new Set(productIds).size !== productIds.length) {
+          throw new BadRequestException('A product can only appear once in a purchase order');
+        }
+
+        const products = await queryRunner.manager.find(Product, {
+          where: { id: In(productIds) },
+        });
+        if (products.length !== productIds.length) {
+          throw new BadRequestException('One or more products not found');
+        }
+        if (products.some((product) => product.branchId !== po.branchId)) {
+          throw new BadRequestException('All products must belong to the purchase order branch');
+        }
+        const productMap = new Map(products.map((product) => [product.id, product]));
+
+        await queryRunner.manager.delete(PurchaseOrderItem, { purchaseOrderId: po.id });
+        const newItems = updateDto.items.map((itemDto) => {
+          const product = productMap.get(itemDto.productId)!;
+          return queryRunner.manager.create(PurchaseOrderItem, {
+            purchaseOrderId: po.id,
+            productId: itemDto.productId,
+            productName: product.name,
+            productSku: product.sku,
+            quantity: itemDto.quantity,
+            unitCost: itemDto.unitCost,
+            receivedQuantity: 0,
+          });
+        });
+        await queryRunner.manager.save(newItems);
+        po.totalAmount = calculatePurchaseOrderTotal(updateDto.items);
+      }
+
+      updated = await queryRunner.manager.save(po);
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
     }
-
-    const updated = await this.poRepository.save(po);
 
     // Audit log
     await this.auditLogsService.logAction({
@@ -312,7 +359,7 @@ export class PurchaseOrdersService {
       details: updateDto,
     });
 
-    return this.findOne(updated.id);
+    return this.findOne(updated.id, staffId);
   }
 
   async remove(id: string, staffId?: string | null) {
@@ -320,7 +367,7 @@ export class PurchaseOrdersService {
       throw new UnauthorizedException('Staff identification required to delete purchase orders');
     }
 
-    const po = await this.findOne(id);
+    const po = await this.findOne(id, staffId);
 
     // Only allow deleting draft orders
     if (po.status !== PurchaseOrderStatus.DRAFT) {
@@ -347,7 +394,7 @@ export class PurchaseOrdersService {
       throw new UnauthorizedException('Staff identification required to approve purchase orders');
     }
 
-    const po = await this.findOne(id);
+    const po = await this.findOne(id, staffId);
 
     if (po.status !== PurchaseOrderStatus.PENDING_APPROVAL) {
       throw new BadRequestException('Only pending approval orders can be approved');
@@ -370,7 +417,7 @@ export class PurchaseOrdersService {
       details: { poNumber: updated.poNumber },
     });
 
-    return this.findOne(updated.id);
+    return this.findOne(updated.id, staffId);
   }
 
   async reject(id: string, rejectDto: RejectPurchaseOrderDto, staffId?: string | null) {
@@ -378,7 +425,7 @@ export class PurchaseOrdersService {
       throw new UnauthorizedException('Staff identification required to reject purchase orders');
     }
 
-    const po = await this.findOne(id);
+    const po = await this.findOne(id, staffId);
 
     if (po.status !== PurchaseOrderStatus.PENDING_APPROVAL) {
       throw new BadRequestException('Only pending approval orders can be rejected');
@@ -399,7 +446,7 @@ export class PurchaseOrdersService {
       details: { poNumber: updated.poNumber, reason: rejectDto.reason },
     });
 
-    return this.findOne(updated.id);
+    return this.findOne(updated.id, staffId);
   }
 
   async cancel(id: string, staffId?: string | null) {
@@ -407,7 +454,7 @@ export class PurchaseOrdersService {
       throw new UnauthorizedException('Staff identification required to cancel purchase orders');
     }
 
-    const po = await this.findOne(id);
+    const po = await this.findOne(id, staffId);
 
     // Only draft or pending_approval can be cancelled
     const cancellableStatuses = [PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.PENDING_APPROVAL];
@@ -431,34 +478,49 @@ export class PurchaseOrdersService {
       details: { poNumber: updated.poNumber },
     });
 
-    return this.findOne(updated.id);
+    return this.findOne(updated.id, staffId);
   }
 
   async receiveItems(id: string, receiveDto: ReceiveItemsDto, staffId?: string | null) {
     if (!staffId) {
       throw new UnauthorizedException('Staff identification required to receive items');
     }
-
-    const po = await this.findOne(id);
-
-    // Only approved or partially_received orders can receive items
-    const receivableStatuses = [
-      PurchaseOrderStatus.APPROVED,
-      PurchaseOrderStatus.PARTIALLY_RECEIVED,
-    ];
-    if (!receivableStatuses.includes(po.status)) {
-      throw new BadRequestException(
-        `Cannot receive items for purchase order in ${po.status} status. Only approved or partially received orders can receive items.`
-      );
-    }
-
-    // Use transaction for inventory updates
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
+    let poNumber!: string;
+    let newStatus!: PurchaseOrderStatus;
+    const inventoryUpdates: Record<string, unknown>[] = [];
+
     try {
-      const itemMap = new Map(po.items.map((item) => [item.id, item]));
+      const po = await queryRunner.manager.findOne(PurchaseOrder, {
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!po) {
+        throw new NotFoundException('Purchase order not found');
+      }
+
+      await this.branchAccessService.assertCanAccess(staffId, po.branchId);
+
+      const receivableStatuses = [
+        PurchaseOrderStatus.APPROVED,
+        PurchaseOrderStatus.PARTIALLY_RECEIVED,
+      ];
+      if (!receivableStatuses.includes(po.status)) {
+        throw new BadRequestException(
+          `Cannot receive items for purchase order in ${po.status} status. Only approved or partially received orders can receive items.`
+        );
+      }
+
+      const poItems = await queryRunner.manager
+        .createQueryBuilder(PurchaseOrderItem, 'item')
+        .where('item.purchaseOrderId = :purchaseOrderId', { purchaseOrderId: po.id })
+        .orderBy('item.id', 'ASC')
+        .setLock('pessimistic_write')
+        .getMany();
+      const itemMap = new Map(poItems.map((item) => [item.id, item]));
 
       for (const receiveItem of receiveDto.items) {
         const poItem = itemMap.get(receiveItem.itemId);
@@ -466,90 +528,85 @@ export class PurchaseOrdersService {
           throw new BadRequestException(`Item not found: ${receiveItem.itemId}`);
         }
 
-        // Check if receiving more than remaining quantity
         const remainingQty = poItem.quantity - poItem.receivedQuantity;
         if (receiveItem.quantityReceived > remainingQty) {
           throw new BadRequestException(
             `Cannot receive ${receiveItem.quantityReceived} units for ${poItem.productName}. Only ${remainingQty} remaining.`
           );
         }
+      }
 
-        // Update received quantity on PO item
+      const productIds = [...new Set(poItems.map((item) => item.productId))];
+      const products = await queryRunner.manager
+        .createQueryBuilder(Product, 'product')
+        .where('product.id IN (:...productIds)', { productIds })
+        .orderBy('product.id', 'ASC')
+        .setLock('pessimistic_write')
+        .getMany();
+      const productMap = new Map(products.map((product) => [product.id, product]));
+
+      const sortedReceiptItems = [...receiveDto.items].sort((a, b) =>
+        a.itemId.localeCompare(b.itemId)
+      );
+      for (const receiveItem of sortedReceiptItems) {
+        const poItem = itemMap.get(receiveItem.itemId);
+        if (!poItem) throw new BadRequestException(`Item not found: ${receiveItem.itemId}`);
+
         poItem.receivedQuantity += receiveItem.quantityReceived;
         await queryRunner.manager.save(poItem);
 
-        // Update product inventory and cost price (WAC)
-        const product = await queryRunner.manager.findOne(Product, {
-          where: { id: poItem.productId },
-        });
-        if (product) {
-          const previousQty = product.quantity;
-          const previousCostPrice = product.costPrice;
-          const rcvQty = receiveItem.quantityReceived;
-          const poUnitCost = poItem.unitCost;
-
-          // Calculate Weighted Average Cost (WAC)
-          // If previous cost is unknown (null), use PO unit cost as baseline
-          const oldCost = previousCostPrice ?? poUnitCost;
-          if (previousQty + rcvQty > 0) {
-            product.costPrice =
-              (previousQty * oldCost + rcvQty * poUnitCost) / (previousQty + rcvQty);
-          } else {
-            product.costPrice = poUnitCost;
-          }
-
-          product.quantity += rcvQty;
-          await queryRunner.manager.save(product);
-
-          // Create stock adjustment record
-          await this.stockAdjustmentsService.createAdjustmentWithManager(
-            queryRunner.manager,
-            {
-              productId: product.id,
-              branchId: po.branchId,
-              adjustmentType: StockAdjustmentType.PROCUREMENT_RECEIPT,
-              quantityChange: rcvQty,
-              previousQuantity: previousQty,
-              newQuantity: product.quantity,
-              unitCost: poUnitCost,
-              previousCostPrice,
-              newCostPrice: product.costPrice,
-              referenceType: 'purchase_order',
-              referenceId: po.id,
-              referenceCode: po.poNumber,
-              staffId,
-            },
-          );
-
-          // Audit log for inventory update
-          await this.auditLogsService.logAction({
-            staffId,
-            action: 'INVENTORY_UPDATE',
-            entity: 'product',
-            entityId: product.id,
-            description: `Received ${rcvQty} units from PO ${po.poNumber}`,
-            details: {
-              poNumber: po.poNumber,
-              poItemId: poItem.id,
-              productName: product.name,
-              previousQuantity: previousQty,
-              receivedQuantity: rcvQty,
-              newQuantity: product.quantity,
-              previousCostPrice,
-              newCostPrice: product.costPrice,
-              unitCost: poUnitCost,
-            },
-          });
+        const product = productMap.get(poItem.productId);
+        if (!product) {
+          throw new BadRequestException(`Product not found for ${poItem.productName}`);
         }
+        if (product.branchId !== po.branchId) {
+          throw new BadRequestException(`Product "${product.name}" does not belong to this branch`);
+        }
+
+        const previousQty = product.quantity;
+        const previousCostPrice = product.costPrice;
+        const rcvQty = receiveItem.quantityReceived;
+        const poUnitCost = poItem.unitCost;
+        const oldCost = previousCostPrice ?? poUnitCost;
+
+        product.costPrice =
+          previousQty + rcvQty > 0
+            ? (previousQty * oldCost + rcvQty * poUnitCost) / (previousQty + rcvQty)
+            : poUnitCost;
+        product.quantity += rcvQty;
+        await queryRunner.manager.save(product);
+
+        await this.stockAdjustmentsService.createAdjustmentWithManager(queryRunner.manager, {
+          productId: product.id,
+          branchId: po.branchId,
+          adjustmentType: StockAdjustmentType.PROCUREMENT_RECEIPT,
+          quantityChange: rcvQty,
+          previousQuantity: previousQty,
+          newQuantity: product.quantity,
+          unitCost: poUnitCost,
+          previousCostPrice,
+          newCostPrice: product.costPrice,
+          referenceType: 'purchase_order',
+          referenceId: po.id,
+          referenceCode: po.poNumber,
+          staffId,
+        });
+
+        inventoryUpdates.push({
+          poItemId: poItem.id,
+          productId: product.id,
+          productName: product.name,
+          previousQuantity: previousQty,
+          receivedQuantity: rcvQty,
+          newQuantity: product.quantity,
+          previousCostPrice,
+          newCostPrice: product.costPrice,
+          unitCost: poUnitCost,
+        });
       }
 
-      // Reload items to check if all received
-      const updatedItems = await queryRunner.manager.find(PurchaseOrderItem, {
-        where: { purchaseOrderId: po.id },
-      });
-
-      const allReceived = updatedItems.every((item) => item.receivedQuantity >= item.quantity);
-      const anyReceived = updatedItems.some((item) => item.receivedQuantity > 0);
+      const allReceived = poItems.every((item) => item.receivedQuantity >= item.quantity);
+      const anyReceived = poItems.some((item) => item.receivedQuantity > 0);
 
       if (allReceived) {
         po.status = PurchaseOrderStatus.RECEIVED;
@@ -558,30 +615,31 @@ export class PurchaseOrdersService {
       }
 
       await queryRunner.manager.save(po);
-
       await queryRunner.commitTransaction();
-
-      // Audit log for receiving
-      await this.auditLogsService.logAction({
-        staffId,
-        action: 'RECEIVE',
-        entity: 'purchaseOrder',
-        entityId: po.id,
-        description: `Received items for purchase order: ${po.poNumber}`,
-        details: {
-          poNumber: po.poNumber,
-          itemsReceived: receiveDto.items,
-          newStatus: po.status,
-        },
-      });
-
-      return this.findOne(po.id);
+      poNumber = po.poNumber;
+      newStatus = po.status;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
     } finally {
       await queryRunner.release();
     }
+
+    await this.auditLogsService.logAction({
+      staffId,
+      action: 'RECEIVE',
+      entity: 'purchaseOrder',
+      entityId: id,
+      description: `Received items for purchase order: ${poNumber}`,
+      details: {
+        poNumber,
+        itemsReceived: receiveDto.items,
+        inventoryUpdates,
+        newStatus,
+      },
+    });
+
+    return this.findOne(id, staffId);
   }
 
   async submitForApproval(id: string, staffId?: string | null) {
@@ -589,7 +647,7 @@ export class PurchaseOrdersService {
       throw new UnauthorizedException('Staff identification required to submit for approval');
     }
 
-    const po = await this.findOne(id);
+    const po = await this.findOne(id, staffId);
 
     if (po.status !== PurchaseOrderStatus.DRAFT) {
       throw new BadRequestException('Only draft orders can be submitted for approval');
@@ -613,6 +671,6 @@ export class PurchaseOrdersService {
       details: { poNumber: updated.poNumber },
     });
 
-    return this.findOne(updated.id);
+    return this.findOne(updated.id, staffId);
   }
 }

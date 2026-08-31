@@ -1,83 +1,100 @@
 <div class="customers-page">
-    <app-page-header title="Customers" subtitle="Manage customer profiles and their vehicles"
-        [showAddButton]="true" addButtonLabel="Add Customer" (addClick)="onCreate()"></app-page-header>
+  <app-page-header
+    title="Customers"
+    subtitle="Manage customer profiles and contact details"
+    [showAddButton]="true"
+    addButtonLabel="Add Customer"
+    (addClick)="onCreate()"
+  ></app-page-header>
 
-    <!-- Error Message -->
-    @if (error()) {
+  <!-- Error Message -->
+  @if (error()) {
     <div class="error-banner">
-        <i class="pi pi-exclamation-circle"></i>
-        <span>{{ error() }}</span>
+      <i class="pi pi-exclamation-circle"></i>
+      <span>{{ error() }}</span>
     </div>
-    }
+  }
 
-    <!-- Data Table -->
-    <div class="card">
-        <p-table [value]="customers()" [loading]="isLoading()" selectionMode="single" (onRowSelect)="onRowClick($event)">
-            <ng-template pTemplate="header">
-                <tr>
-                    <th>Name</th>
-                    <th>Contact</th>
-                    <th>Vehicles</th>
-                    <th>Account</th>
-                </tr>
-            </ng-template>
-            <ng-template pTemplate="body" let-customer>
-                <tr [pSelectableRow]="customer" class="clickable-row">
-                    <td>
-                        <div class="customer-info">
-                            <div class="customer-avatar" [class.has-image]="customer.photoUrl">
-                                @if (customer.photoUrl) {
-                                <img [src]="customer.photoUrl" [alt]="customer.name">
-                                } @else {
-                                <i class="pi pi-user"></i>
-                                }
-                            </div>
-                            <div class="customer-details">
-                                <span class="name">{{ customer.name }}</span>
-                                @if (customer.address) {
-                                <span class="address">{{ customer.address }}</span>
-                                }
-                            </div>
-                        </div>
-                    </td>
-                    <td>
-                        <div class="contact-info">
-                            <span><i class="pi pi-phone"></i> {{ customer.phoneNumber }}</span>
-                            @if (customer.email) {
-                            <span><i class="pi pi-envelope"></i> {{ customer.email }}</span>
-                            }
-                        </div>
-                    </td>
-                    <td>
-                        <span class="vehicle-count">{{ customer.vehicles?.length || 0 }} vehicles</span>
-                    </td>
-                    <td>
-                        @if (customer.userAccountId) {
-                        <p-tag severity="success" value="Registered"></p-tag>
-                        } @else {
-                        <p-tag severity="secondary" value="Walk-in"></p-tag>
-                        }
-                    </td>
-                </tr>
-            </ng-template>
-            <ng-template pTemplate="emptymessage">
-                <tr>
-                    <td colspan="4" class="empty-message">
-                        No customers found. Add your first customer to get started.
-                    </td>
-                </tr>
-            </ng-template>
-        </p-table>
+  <!-- Data Table -->
+  <div class="card">
+    <p-table
+      [value]="customers()"
+      [loading]="isLoading()"
+      selectionMode="single"
+      (onRowSelect)="onRowClick($event)"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Name</th>
+          <th>Contact</th>
+          <th>Account</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-customer>
+        <tr [pSelectableRow]="customer" class="clickable-row">
+          <td>
+            <div class="customer-info">
+              <div class="customer-avatar" [class.has-image]="customer.photoUrl">
+                @if (customer.photoUrl) {
+                  <img [src]="customer.photoUrl" [alt]="customer.name" />
+                } @else {
+                  <i class="pi pi-user"></i>
+                }
+              </div>
+              <div class="customer-details">
+                <span class="name">{{ customer.name }}</span>
+                @if (customer.address) {
+                  <span class="address">{{ customer.address }}</span>
+                }
+              </div>
+            </div>
+          </td>
+          <td>
+            <div class="contact-info">
+              <span><i class="pi pi-phone"></i> {{ customer.phoneNumber }}</span>
+              @if (customer.email) {
+                <span><i class="pi pi-envelope"></i> {{ customer.email }}</span>
+              }
+            </div>
+          </td>
+          <td>
+            @if (customer.userAccountId) {
+              <p-tag severity="success" value="Registered"></p-tag>
+            } @else {
+              <p-tag severity="secondary" value="Walk-in"></p-tag>
+            }
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="3" class="empty-message">
+            No customers found. Add your first customer to get started.
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
 
-        <!-- Pagination -->
-        <div class="pagination">
-            <button pButton label="Prev" icon="pi pi-chevron-left" class="p-button-outlined p-button-sm"
-                [disabled]="!canGoPrev()" (click)="onPrevPage()"></button>
-            <span class="page-info">
-                Page {{ pagination().page }} of {{ pagination().totalPages }}
-            </span>
-            <button pButton label="Next" icon="pi pi-chevron-right" iconPos="right"
-                class="p-button-outlined p-button-sm" [disabled]="!canGoNext()" (click)="onNextPage()"></button>
-        </div>
+    <!-- Pagination -->
+    <div class="pagination">
+      <button
+        pButton
+        label="Prev"
+        icon="pi pi-chevron-left"
+        class="p-button-outlined p-button-sm"
+        [disabled]="!canGoPrev()"
+        (click)="onPrevPage()"
+      ></button>
+      <span class="page-info"> Page {{ pagination().page }} of {{ pagination().totalPages }} </span>
+      <button
+        pButton
+        label="Next"
+        icon="pi pi-chevron-right"
+        iconPos="right"
+        class="p-button-outlined p-button-sm"
+        [disabled]="!canGoNext()"
+        (click)="onNextPage()"
+      ></button>
     </div>
+  </div>
 </div>

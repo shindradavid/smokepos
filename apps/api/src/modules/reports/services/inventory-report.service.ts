@@ -1,15 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual } from 'typeorm';
+import { Repository } from 'typeorm';
 import { Product } from '../../products/entities/product.entity';
 import { Branch } from '../../branches/entities/branch.entity';
-import { Category } from '../../products/entities/category.entity';
-import { ReportQueryDto } from '../dto/report-query.dto';
+import { calculateInventorySummary } from '../utils/inventory-summary';
 
 export interface InventoryReportData {
   summary: {
     totalProducts: number;
-    totalStockValue: number;
     totalCostValue: number;
     totalRetailValue: number;
     lowStockCount: number;
@@ -21,7 +19,7 @@ export interface InventoryReportData {
     categoryName: string;
     productCount: number;
     totalQuantity: number;
-    totalValue: number;
+    totalRetailValue: number;
     totalCostValue: number;
   }[];
   lowStockProducts: {
@@ -31,6 +29,7 @@ export interface InventoryReportData {
     quantity: number;
     lowStockThreshold: number;
     price: number;
+    costPrice: number | null;
     categoryName: string;
   }[];
   topValueProducts: {
@@ -40,7 +39,7 @@ export interface InventoryReportData {
     quantity: number;
     price: number;
     costPrice: number | null;
-    stockValue: number;
+    retailValue: number;
     costValue: number;
   }[];
   branch: {
@@ -55,9 +54,7 @@ export class InventoryReportService {
     @InjectRepository(Product)
     private readonly productRepository: Repository<Product>,
     @InjectRepository(Branch)
-    private readonly branchRepository: Repository<Branch>,
-    @InjectRepository(Category)
-    private readonly categoryRepository: Repository<Category>
+    private readonly branchRepository: Repository<Branch>
   ) {}
 
   async getInventoryReport(branchId: string): Promise<InventoryReportData> {
@@ -74,28 +71,8 @@ export class InventoryReportService {
     });
 
     // Calculate summary
-    let totalRetailValue = 0;
-    let totalCostValue = 0;
-    let lowStockCount = 0;
-    let outOfStockCount = 0;
-    let totalQuantity = 0;
-
-    for (const product of products) {
-      const retailValue = product.quantity * product.price;
-      const costValue = product.quantity * (product.costPrice ?? 0);
-      totalRetailValue += retailValue;
-      totalCostValue += costValue;
-      totalQuantity += product.quantity;
-
-      if (product.quantity === 0) {
-        outOfStockCount++;
-      } else if (product.quantity <= product.lowStockThreshold) {
-        lowStockCount++;
-      }
-    }
-
-    // totalStockValue uses cost when available, falls back to retail
-    const totalStockValue = totalCostValue > 0 ? totalCostValue : totalRetailValue;
+    const { totalRetailValue, totalCostValue, totalQuantity, lowStockCount, outOfStockCount } =
+      calculateInventorySummary(products);
 
     const totalProducts = products.length;
     const averageStockLevel = totalProducts > 0 ? totalQuantity / totalProducts : 0;
@@ -103,7 +80,13 @@ export class InventoryReportService {
     // Group by category
     const categoryMap = new Map<
       string,
-      { categoryName: string; productCount: number; totalQuantity: number; totalValue: number; totalCostValue: number }
+      {
+        categoryName: string;
+        productCount: number;
+        totalQuantity: number;
+        totalRetailValue: number;
+        totalCostValue: number;
+      }
     >();
 
     for (const product of products) {
@@ -115,7 +98,7 @@ export class InventoryReportService {
           categoryName,
           productCount: 0,
           totalQuantity: 0,
-          totalValue: 0,
+          totalRetailValue: 0,
           totalCostValue: 0,
         });
       }
@@ -123,7 +106,7 @@ export class InventoryReportService {
       const cat = categoryMap.get(categoryId)!;
       cat.productCount++;
       cat.totalQuantity += product.quantity;
-      cat.totalValue += product.quantity * product.price;
+      cat.totalRetailValue += product.quantity * product.price;
       cat.totalCostValue += product.quantity * (product.costPrice ?? 0);
     }
 
@@ -132,7 +115,7 @@ export class InventoryReportService {
         categoryId,
         ...data,
       }))
-      .sort((a, b) => b.totalValue - a.totalValue);
+      .sort((a, b) => b.totalRetailValue - a.totalRetailValue);
 
     // Get low stock products
     const lowStockProducts = products
@@ -146,6 +129,7 @@ export class InventoryReportService {
         quantity: p.quantity,
         lowStockThreshold: p.lowStockThreshold,
         price: p.price,
+        costPrice: p.costPrice,
         categoryName: p.category?.name || 'Uncategorized',
       }));
 
@@ -158,16 +142,15 @@ export class InventoryReportService {
         quantity: p.quantity,
         price: p.price,
         costPrice: p.costPrice,
-        stockValue: p.quantity * p.price,
+        retailValue: p.quantity * p.price,
         costValue: p.quantity * (p.costPrice ?? 0),
       }))
-      .sort((a, b) => b.costValue - a.costValue || b.stockValue - a.stockValue)
+      .sort((a, b) => b.costValue - a.costValue || b.retailValue - a.retailValue)
       .slice(0, 10);
 
     return {
       summary: {
         totalProducts,
-        totalStockValue,
         totalCostValue,
         totalRetailValue,
         lowStockCount,

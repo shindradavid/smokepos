@@ -55,7 +55,7 @@ input[type="file"] {
 input:focus,
 textarea:focus {
     outline: none;
-    border-color: #6366f1;
+    border-color: #263238;
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
@@ -124,12 +124,12 @@ button {
 }
 
 .btn-save {
-    background: #6366f1;
+    background: #263238;
     color: white;
 }
 
 .btn-save:hover:not(:disabled) {
-    background: #4f46e5;
+    background: #263238;
 }
 
 .btn-save:disabled {

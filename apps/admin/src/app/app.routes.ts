@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { MainLayoutComponent } from './layout/main-layout.component';
 import { authGuard, noAuthGuard } from './core/guards/auth.guard';
+import { PermissionGuard } from './core/guards/permission.guard';
 
 export const routes: Routes = [
   {
@@ -20,13 +21,15 @@ export const routes: Routes = [
           import('./features/dashboard/dashboard.routes').then((m) => m.DASHBOARD_ROUTES),
       },
       {
+        path: 'pos',
+        canActivate: [PermissionGuard],
+        data: { permissions: ['sale.create', 'product.view'] },
+        loadComponent: () => import('./features/pos/pos.component').then((m) => m.PosComponent),
+      },
+      {
         path: 'categories',
         loadChildren: () =>
           import('./features/categories/categories.routes').then((m) => m.CATEGORIES_ROUTES),
-      },
-      {
-        path: 'brands',
-        loadChildren: () => import('./features/brands/brands.routes').then((m) => m.BRANDS_ROUTES),
       },
       {
         path: 'sales',
@@ -35,11 +38,6 @@ export const routes: Routes = [
       {
         path: 'staff',
         loadChildren: () => import('./features/staff/staff.routes').then((m) => m.STAFF_ROUTES),
-      },
-      {
-        path: 'messages',
-        loadChildren: () =>
-          import('./features/messages/messages.routes').then((m) => m.MESSAGES_ROUTES),
       },
       {
         path: 'roles',

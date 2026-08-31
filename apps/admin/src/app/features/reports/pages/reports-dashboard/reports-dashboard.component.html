@@ -9,7 +9,7 @@
   </div>
 
   <div class="reports-grid">
-    @for (card of reportCards; track card.route) {
+    @for (card of visibleReportCards; track card.route) {
       <div class="report-card" (click)="navigateTo(card.route)">
         <div
           class="card-icon"

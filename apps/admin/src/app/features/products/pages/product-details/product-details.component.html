@@ -38,18 +38,28 @@
         </div>
         <div class="stat-row">
           <span>Buying Price</span>
-          <span>{{ product.costPrice !== null ? (product.costPrice | currency: 'UGX' : 'symbol' : '1.0-0') : 'Not set' }}</span>
+          <span>{{
+            product.costPrice !== null
+              ? (product.costPrice | currency: 'UGX' : 'symbol' : '1.0-0')
+              : 'Not set'
+          }}</span>
         </div>
         @if (getProfitMargin() !== null) {
           <div class="stat-row">
             <span>Profit Margin</span>
-            <span [class.positive-margin]="getProfitMargin()! > 0" [class.negative-margin]="getProfitMargin()! < 0">
+            <span
+              [class.positive-margin]="getProfitMargin()! > 0"
+              [class.negative-margin]="getProfitMargin()! < 0"
+            >
               {{ getProfitMargin() | number: '1.1-1' }}%
             </span>
           </div>
           <div class="stat-row">
             <span>Gross Profit</span>
-            <span>{{ (product.price - product.costPrice!) | currency: 'UGX' : 'symbol' : '1.0-0' }} / unit</span>
+            <span
+              >{{ product.price - product.costPrice! | currency: 'UGX' : 'symbol' : '1.0-0' }} /
+              unit</span
+            >
           </div>
         }
         @if (canViewQuantity()) {
@@ -73,10 +83,6 @@
 
       <div class="card">
         <h3>Organization</h3>
-        <div class="info-item">
-          <span class="label">Brand</span>
-          <p>{{ product.brand?.name || 'N/A' }}</p>
-        </div>
         <div class="info-item">
           <span class="label">Category</span>
           <p>{{ product.category?.name || 'N/A' }}</p>
@@ -133,7 +139,10 @@
               ></p-tag>
             </td>
             <td>
-              <span [class.qty-increase]="adj.quantityChange > 0" [class.qty-decrease]="adj.quantityChange < 0">
+              <span
+                [class.qty-increase]="adj.quantityChange > 0"
+                [class.qty-decrease]="adj.quantityChange < 0"
+              >
                 {{ adj.quantityChange > 0 ? '+' : '' }}{{ adj.quantityChange }}
               </span>
             </td>

@@ -7,14 +7,17 @@ import { ButtonModule } from 'primeng/button';
 import { TableModule } from 'primeng/table';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageModule } from 'primeng/message';
+import { Subscription } from 'rxjs';
 import { TagModule } from 'primeng/tag';
 
 import { ReportsService } from '../../services/reports.service';
 import { BranchService } from '../../../../core/services/branch.service';
+import { AuthService } from '../../../../core/services/auth.service';
 import { ExpenseReportData, ReportQuery } from '../../models/report.model';
 import {
   DateRangePickerComponent,
   DateRange,
+  parseLocalDate,
 } from '../../components/date-range-picker/date-range-picker.component';
 
 @Component({
@@ -38,15 +41,19 @@ export class ExpensesReportComponent implements OnInit, OnDestroy {
   private readonly router = inject(Router);
   private readonly reportsService = inject(ReportsService);
   private readonly branchService = inject(BranchService);
+  private readonly authService = inject(AuthService);
 
   readonly isLoading = signal(false);
   readonly error = signal<string | null>(null);
   readonly data = signal<ExpenseReportData | null>(null);
   readonly isExporting = signal(false);
+  readonly canExport = computed(() => this.authService.hasPermission('report.export'));
 
   private currentDateRange: DateRange | null = null;
   private currentQuery: ReportQuery | null = null;
   private isInitialized = false;
+  private reportSubscription?: Subscription;
+  private exportSubscription?: Subscription;
 
   // Effect to reload report when branch changes
   private readonly branchEffect = effect(() => {
@@ -57,21 +64,21 @@ export class ExpensesReportComponent implements OnInit, OnDestroy {
   });
 
   private readonly categoryColors = [
-    '#dc2626',
-    '#f59e0b',
-    '#22c55e',
-    '#3b82f6',
-    '#8b5cf6',
-    '#ec4899',
-    '#14b8a6',
-    '#f97316',
-    '#6366f1',
-    '#84cc16',
-    '#06b6d4',
-    '#a855f7',
-    '#eab308',
-    '#ef4444',
-    '#10b981',
+    '#263238',
+    '#FFB300',
+    '#009688',
+    '#009688',
+    '#263238',
+    '#FFB300',
+    '#009688',
+    '#263238',
+    '#263238',
+    '#009688',
+    '#FFB300',
+    '#263238',
+    '#FFB300',
+    '#263238',
+    '#009688',
   ];
 
   // Doughnut chart for expenses by category
@@ -115,8 +122,8 @@ export class ExpensesReportComponent implements OnInit, OnDestroy {
           label: 'Expenses (UGX)',
           data: reportData.dailyTrends.map((d) => d.amount),
           fill: true,
-          borderColor: '#f59e0b',
-          backgroundColor: 'rgba(245, 158, 11, 0.1)',
+          borderColor: '#FFB300',
+          backgroundColor: 'rgba(255, 179, 0, 0.1)',
           tension: 0.4,
         },
       ],
@@ -145,6 +152,8 @@ export class ExpensesReportComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.branchEffect.destroy();
+    this.reportSubscription?.unsubscribe();
+    this.exportSubscription?.unsubscribe();
   }
 
   onDateRangeChange(range: DateRange): void {
@@ -174,7 +183,8 @@ export class ExpensesReportComponent implements OnInit, OnDestroy {
     this.isLoading.set(true);
     this.error.set(null);
 
-    this.reportsService.getExpenseReport(this.currentQuery).subscribe({
+    this.reportSubscription?.unsubscribe();
+    this.reportSubscription = this.reportsService.getExpenseReport(this.currentQuery).subscribe({
       next: (data) => {
         this.data.set(data);
         this.isLoading.set(false);
@@ -187,22 +197,26 @@ export class ExpensesReportComponent implements OnInit, OnDestroy {
   }
 
   exportPdf(): void {
-    if (!this.currentQuery) return;
+    if (!this.currentQuery || !this.canExport()) return;
 
     this.isExporting.set(true);
 
-    this.reportsService.downloadExpenseReportPdf(this.currentQuery).subscribe({
-      next: (blob) => {
-        this.reportsService.downloadFile(
-          blob,
-          `expense-report-${this.currentQuery!.startDate}-${this.currentQuery!.endDate}.pdf`
-        );
-        this.isExporting.set(false);
-      },
-      error: () => {
-        this.isExporting.set(false);
-      },
-    });
+    this.exportSubscription?.unsubscribe();
+    this.exportSubscription = this.reportsService
+      .downloadExpenseReportPdf(this.currentQuery)
+      .subscribe({
+        next: (blob) => {
+          this.reportsService.downloadFile(
+            blob,
+            `expense-report-${this.currentQuery!.startDate}-${this.currentQuery!.endDate}.pdf`
+          );
+          this.isExporting.set(false);
+        },
+        error: (err) => {
+          this.error.set(err?.error?.message || 'Failed to export expense report');
+          this.isExporting.set(false);
+        },
+      });
   }
 
   goBack(): void {
@@ -231,7 +245,7 @@ export class ExpensesReportComponent implements OnInit, OnDestroy {
   }
 
   private formatDateLabel(dateStr: string): string {
-    const date = new Date(dateStr);
+    const date = parseLocalDate(dateStr);
     return date.toLocaleDateString('en-UG', { month: 'short', day: 'numeric' });
   }
 }

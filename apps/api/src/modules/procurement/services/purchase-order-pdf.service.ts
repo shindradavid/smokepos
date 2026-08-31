@@ -8,6 +8,10 @@ const PDFDocument = require('pdfkit');
 
 @Injectable()
 export class PurchaseOrderPdfService {
+  private readonly primaryColor = '#263238';
+  private readonly secondaryColor = '#009688';
+  private readonly surfaceColor = '#fafafa';
+
   constructor(
     @InjectRepository(PurchaseOrder)
     private readonly poRepository: Repository<PurchaseOrder>
@@ -48,24 +52,20 @@ export class PurchaseOrderPdfService {
 
   private drawHeader(doc: PDFKit.PDFDocument, po: PurchaseOrder, pageWidth: number): void {
     // Company name
-    doc
-      .fontSize(20)
-      .font('Helvetica-Bold')
-      .fillColor('#dc2626')
-      .text('SMOKE POS', 50, 45);
+    doc.fontSize(20).font('Helvetica-Bold').fillColor(this.primaryColor).text('QWIK POS', 50, 45);
 
     // PO Title on the right
     doc
       .fontSize(28)
       .font('Helvetica-Bold')
-      .fillColor('#dc2626')
+      .fillColor(this.primaryColor)
       .text('PURCHASE ORDER', 300, 45, { align: 'right' });
 
     doc.moveDown(1.5);
 
     // PO Number box
     const boxY = doc.y;
-    doc.rect(50, boxY, pageWidth, 45).fill('#f8fafc').stroke('#e2e8f0');
+    doc.rect(50, boxY, pageWidth, 45).fill(this.surfaceColor).stroke('#e2e8f0');
 
     doc
       .fillColor('#64748b')
@@ -114,9 +114,9 @@ export class PurchaseOrderPdfService {
     const colWidth = (pageWidth - 40) / 2;
 
     // FROM Section (Left)
-    doc.rect(50, startY, colWidth, 100).fill('#f8fafc').stroke('#e2e8f0');
+    doc.rect(50, startY, colWidth, 100).fill(this.surfaceColor).stroke('#e2e8f0');
     doc
-      .fillColor('#dc2626')
+      .fillColor(this.primaryColor)
       .fontSize(11)
       .font('Helvetica-Bold')
       .text('FROM', 65, startY + 12);
@@ -129,7 +129,7 @@ export class PurchaseOrderPdfService {
       .fillColor('#64748b')
       .fontSize(10)
       .font('Helvetica')
-      .text('SMOKE POS', 65, startY + 46);
+      .text('QWIK POS', 65, startY + 46);
 
     if (po.expectedDeliveryDate) {
       doc
@@ -146,9 +146,9 @@ export class PurchaseOrderPdfService {
 
     // TO Section (Right)
     const rightX = 50 + colWidth + 40;
-    doc.rect(rightX, startY, colWidth, 100).fill('#f8fafc').stroke('#e2e8f0');
+    doc.rect(rightX, startY, colWidth, 100).fill(this.surfaceColor).stroke('#e2e8f0');
     doc
-      .fillColor('#dc2626')
+      .fillColor(this.primaryColor)
       .fontSize(11)
       .font('Helvetica-Bold')
       .text('SUPPLIER', rightX + 15, startY + 12);
@@ -198,7 +198,7 @@ export class PurchaseOrderPdfService {
     const rowHeight = 28;
 
     // Table header
-    doc.rect(50, tableTop, pageWidth, rowHeight).fill('#dc2626');
+    doc.rect(50, tableTop, pageWidth, rowHeight).fill(this.primaryColor);
 
     doc.fillColor('#ffffff').fontSize(10).font('Helvetica-Bold');
     doc.text('#', col1 + 8, tableTop + 9);
@@ -219,7 +219,7 @@ export class PurchaseOrderPdfService {
 
       // Alternate row background
       if (index % 2 === 0) {
-        doc.rect(50, y, pageWidth, rowHeight).fill('#f8fafc');
+        doc.rect(50, y, pageWidth, rowHeight).fill(this.surfaceColor);
       } else {
         doc.rect(50, y, pageWidth, rowHeight).fill('#ffffff');
       }
@@ -265,7 +265,7 @@ export class PurchaseOrderPdfService {
     const boxHeight = 90;
 
     // Totals box with gradient-like effect
-    doc.rect(boxX, startY, boxWidth, boxHeight).fill('#f8fafc').stroke('#e2e8f0');
+    doc.rect(boxX, startY, boxWidth, boxHeight).fill(this.surfaceColor).stroke('#e2e8f0');
 
     // Items count
     doc.fillColor('#64748b').fontSize(11).font('Helvetica');
@@ -296,7 +296,7 @@ export class PurchaseOrderPdfService {
     // Grand Total - larger and prominent
     doc.fillColor('#1f2937').fontSize(14).font('Helvetica-Bold');
     doc.text('TOTAL:', boxX + 20, startY + 65);
-    doc.fillColor('#059669').fontSize(18).font('Helvetica-Bold');
+    doc.fillColor(this.secondaryColor).fontSize(18).font('Helvetica-Bold');
     doc.text(this.formatCurrency(po.totalAmount), boxX + boxWidth - 120, startY + 62, {
       width: 100,
       align: 'right',
@@ -335,12 +335,9 @@ export class PurchaseOrderPdfService {
     doc.text(`Generated on ${this.formatDateTime(new Date())}`, 50, footerY + 12, {
       align: 'center',
     });
-    doc.text(
-      'SMOKE POS | This is a computer-generated document',
-      50,
-      footerY + 24,
-      { align: 'center' }
-    );
+    doc.text('QWIK POS | This is a computer-generated document', 50, footerY + 24, {
+      align: 'center',
+    });
   }
 
   private getStatusLabel(status: PurchaseOrderStatus): string {

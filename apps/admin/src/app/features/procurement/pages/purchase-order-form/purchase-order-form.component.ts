@@ -19,7 +19,7 @@ import { TableModule } from 'primeng/table';
 import { ToastModule } from 'primeng/toast';
 import { DialogModule } from 'primeng/dialog';
 import { MessageService } from 'primeng/api';
-import { Subject, debounceTime, distinctUntilChanged, takeUntil } from 'rxjs';
+import { Subject, debounceTime, distinctUntilChanged, startWith, takeUntil } from 'rxjs';
 import { PurchaseOrdersService } from '../../services/purchase-orders.service';
 import { SuppliersService } from '../../services/suppliers.service';
 import { PurchaseOrder, PurchaseOrderStatus, Supplier } from '../../models';
@@ -27,12 +27,14 @@ import { BranchService } from '../../../../core/services/branch.service';
 import { ProductsService } from '../../../../core/services/products.service';
 import { Product } from '../../../../core/models/product.model';
 import { PaginatedResult } from '../../../../core/models/pagination.model';
+import { calculatePurchaseOrderTotal } from '../../utils/purchase-order-total.util';
 
 interface ProductOption {
   id: string;
   name: string;
   sku: string;
   price: number;
+  costPrice: number | null;
 }
 
 @Component({
@@ -107,14 +109,7 @@ export class PurchaseOrderFormComponent implements OnInit, OnDestroy {
     return this.form.get('items') as FormArray;
   }
 
-  readonly totalAmount = computed(() => {
-    const items = this.itemsFormArray.value;
-    return items.reduce(
-      (sum: number, item: { quantity: number; unitCost: number }) =>
-        sum + (item.quantity || 0) * (item.unitCost || 0),
-      0
-    );
-  });
+  readonly totalAmount = signal(0);
 
   constructor() {
     // Setup supplier search with debounce
@@ -130,6 +125,10 @@ export class PurchaseOrderFormComponent implements OnInit, OnDestroy {
       .subscribe((search) => {
         this.loadProducts(search);
       });
+
+    this.itemsFormArray.valueChanges
+      .pipe(startWith(this.itemsFormArray.value), takeUntil(this.destroy$))
+      .subscribe((items) => this.totalAmount.set(calculatePurchaseOrderTotal(items)));
   }
 
   ngOnInit() {
@@ -201,6 +200,7 @@ export class PurchaseOrderFormComponent implements OnInit, OnDestroy {
               name: p.name,
               sku: p.sku || '',
               price: p.price,
+              costPrice: p.costPrice,
             }))
           );
           this.isLoadingProducts.set(false);
@@ -241,7 +241,7 @@ export class PurchaseOrderFormComponent implements OnInit, OnDestroy {
               productId: [item.productId, Validators.required],
               productName: [item.productName || ''],
               quantity: [item.quantity, [Validators.required, Validators.min(1)]],
-              unitCost: [item.unitCost, [Validators.required, Validators.min(0)]],
+              unitCost: [item.unitCost, [Validators.required, Validators.min(0.01)]],
             })
           );
         });
@@ -270,7 +270,7 @@ export class PurchaseOrderFormComponent implements OnInit, OnDestroy {
         productId: ['', Validators.required],
         productName: [''],
         quantity: [1, [Validators.required, Validators.min(1)]],
-        unitCost: [0, [Validators.required, Validators.min(0)]],
+        unitCost: [0, [Validators.required, Validators.min(0.01)]],
       })
     );
   }
@@ -296,7 +296,7 @@ export class PurchaseOrderFormComponent implements OnInit, OnDestroy {
       itemGroup.patchValue({
         productId: product.id,
         productName: product.name,
-        unitCost: product.price,
+        unitCost: product.costPrice ?? 0,
       });
     }
     this.showProductModal.set(false);
@@ -320,7 +320,7 @@ export class PurchaseOrderFormComponent implements OnInit, OnDestroy {
     const product = this.products().find((p) => p.id === productId);
     if (product) {
       const itemGroup = this.itemsFormArray.at(index) as FormGroup;
-      itemGroup.patchValue({ unitCost: product.price });
+      itemGroup.patchValue({ unitCost: product.costPrice ?? 0 });
     }
   }
 

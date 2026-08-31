@@ -81,7 +81,7 @@ input:focus,
 textarea:focus,
 select:focus {
     outline: none;
-    border-color: #6366f1;
+    border-color: #263238;
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
 }
 
@@ -104,8 +104,8 @@ input.error {
     transition: all 0.2s;
 
     &:hover {
-        border-color: #6366f1;
-        background: #f8fafc;
+        border-color: #263238;
+        background: #FAFAFA;
     }
 
     i:first-child {
@@ -201,12 +201,12 @@ button {
 }
 
 .btn-save {
-    background: #6366f1;
+    background: #263238;
     color: white;
 }
 
 .btn-save:hover:not(:disabled) {
-    background: #4f46e5;
+    background: #263238;
 }
 
 .btn-save:disabled {
@@ -278,11 +278,11 @@ input[type="file"] {
     padding: 0.5rem;
     border: 1px dashed #cbd5e1;
     border-radius: 6px;
-    background: #f8fafc;
+    background: #FAFAFA;
     cursor: pointer;
 
     &:hover {
-        border-color: #6366f1;
+        border-color: #263238;
     }
 }
 

@@ -207,27 +207,6 @@
   white-space: pre-wrap;
 }
 
-// Vehicle table
-.vehicle-info {
-  display: flex;
-  flex-direction: column;
-
-  .vehicle-name {
-    font-weight: 500;
-    color: $text-primary;
-  }
-
-  .vehicle-color {
-    font-size: $font-size-xs;
-    color: $text-secondary;
-  }
-}
-
-.action-buttons {
-  display: flex;
-  gap: $spacing-xs;
-}
-
 // Empty state
 .empty-state {
   @include flex-center;
@@ -285,35 +264,4 @@
     color: $text-secondary;
     font-style: italic;
   }
-}
-
-// Vehicle form
-.vehicle-form {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-md;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-xs;
-
-  label {
-    font-size: $font-size-sm;
-    font-weight: 500;
-    color: $text-primary;
-  }
-
-  input,
-  p-inputNumber,
-  p-dropdown {
-    width: 100%;
-  }
-}
-
-.form-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: $spacing-md;
 }

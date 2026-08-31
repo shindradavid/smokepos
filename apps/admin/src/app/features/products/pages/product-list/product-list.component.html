@@ -35,13 +35,6 @@
         <option value="out_of_stock">Out of Stock</option>
       </select>
 
-      <!-- Brand Picker Button -->
-      <button type="button" class="picker-btn" (click)="openBrandPicker()">
-        <i class="pi pi-bookmark"></i>
-        <span>{{ selectedBrand()?.name || 'All Brands' }}</span>
-        <i class="pi pi-chevron-down"></i>
-      </button>
-
       <!-- Category Picker Button -->
       <button type="button" class="picker-btn" (click)="openCategoryPicker()">
         <i class="pi pi-tag"></i>
@@ -95,7 +88,6 @@
         <tr>
           <th>Product</th>
           <th>Category</th>
-          <th>Brand</th>
           <th>Price</th>
           <th>Stock</th>
           <th>Status</th>
@@ -117,7 +109,6 @@
             </div>
           </td>
           <td>{{ product.category?.name || '-' }}</td>
-          <td>{{ product.brand?.name || '-' }}</td>
           <td>{{ product.price | currency: 'UGX' : 'symbol' : '1.0-0' }}</td>
           <td>
             @if (canViewQuantity()) {
@@ -142,7 +133,7 @@
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="6" class="empty-message">
+          <td colspan="5" class="empty-message">
             No products found. Try adjusting your filters or add your first product.
           </td>
         </tr>
@@ -172,16 +163,6 @@
     </div>
   </div>
 </div>
-
-<!-- Brand Picker Dialog -->
-<app-item-picker-dialog
-  title="Select Brand"
-  [(visible)]="brandPickerVisible"
-  [fetchItems]="fetchBrands"
-  [selectedItem]="selectedBrand()"
-  (itemSelected)="onBrandSelected($event)"
->
-</app-item-picker-dialog>
 
 <!-- Category Picker Dialog -->
 <app-item-picker-dialog

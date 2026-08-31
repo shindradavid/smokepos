@@ -16,7 +16,7 @@ export class AppComponent implements OnInit {
   private readonly messageService = inject(MessageService);
   private readonly toastService = inject(ToastService);
 
-  title = 'SMOKE POS Admin';
+  title = 'QWIK POS Admin';
 
   ngOnInit(): void {
     // Register the MessageService with the global ToastService

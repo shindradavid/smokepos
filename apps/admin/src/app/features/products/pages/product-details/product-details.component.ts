@@ -15,7 +15,10 @@ import { PageHeaderComponent } from '../../../../shared/components/page-header/p
 import { ProductsService } from '../../../../core/services/products.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { Product } from '../../../../core/models/product.model';
-import { StockAdjustment, StockAdjustmentTypeLabels } from '../../../../core/models/stock-adjustment.model';
+import {
+  StockAdjustment,
+  StockAdjustmentTypeLabels,
+} from '../../../../core/models/stock-adjustment.model';
 import { PaginationMeta } from '../../../../core/models/pagination.model';
 
 @Component({
@@ -112,7 +115,8 @@ export class ProductDetailsComponent implements OnInit {
   }
 
   getProfitMargin(): number | null {
-    if (!this.product || this.product.costPrice === null || this.product.costPrice === undefined) return null;
+    if (!this.product || this.product.costPrice === null || this.product.costPrice === undefined)
+      return null;
     if (this.product.price === 0) return 0;
     return ((this.product.price - this.product.costPrice) / this.product.price) * 100;
   }
@@ -123,11 +127,16 @@ export class ProductDetailsComponent implements OnInit {
 
   getAdjustmentTypeSeverity(type: string): 'success' | 'info' | 'warn' | 'danger' | 'secondary' {
     switch (type) {
-      case 'procurement_receipt': return 'success';
-      case 'sale': return 'info';
-      case 'sale_cancellation': return 'warn';
-      case 'manual': return 'secondary';
-      default: return 'info';
+      case 'procurement_receipt':
+        return 'success';
+      case 'sale':
+        return 'info';
+      case 'sale_cancellation':
+        return 'warn';
+      case 'manual':
+        return 'secondary';
+      default:
+        return 'info';
     }
   }
 

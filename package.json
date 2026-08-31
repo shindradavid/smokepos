@@ -2,7 +2,7 @@
     "name": "smoke-pos",
     "version": "0.0.1",
     "private": true,
-    "description": "SMOKE POS Monorepo",
+    "description": "QWIK POS Monorepo",
     "scripts": {
         "dev": "pnpm --parallel -r run dev",
         "dev:api": "pnpm --filter @smoke-pos/api run start:dev",

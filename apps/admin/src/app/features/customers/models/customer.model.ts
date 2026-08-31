@@ -1,25 +1,4 @@
 /**
- * Vehicle interface - represents a customer's vehicle
- */
-export interface Vehicle {
-  id: string;
-  customerId: string;
-  brandId: string | null;
-  name: string;
-  color: string | null;
-  numberPlate: string | null;
-  vinNumber: string | null;
-  year: number;
-  brand?: {
-    id: string;
-    name: string;
-    logoUrl?: string;
-  };
-  createdAt: string;
-  updatedAt: string;
-}
-
-/**
  * Customer interface
  */
 export interface Customer {
@@ -37,7 +16,6 @@ export interface Customer {
     name: string;
     slug: string;
   } | null;
-  vehicles?: Vehicle[];
   user?: {
     id: string;
     email: string;
@@ -70,28 +48,4 @@ export interface UpdateCustomerDto {
   address?: string;
   notes?: string;
   branchId?: string;
-}
-
-/**
- * DTO for creating a vehicle
- */
-export interface CreateVehicleDto {
-  name: string;
-  year: number;
-  brandId?: string;
-  color?: string;
-  numberPlate?: string;
-  vinNumber?: string;
-}
-
-/**
- * DTO for updating a vehicle
- */
-export interface UpdateVehicleDto {
-  name?: string;
-  year?: number;
-  brandId?: string;
-  color?: string;
-  numberPlate?: string;
-  vinNumber?: string;
 }

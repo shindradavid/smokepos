@@ -1,8 +1,8 @@
 import { Component, OnInit, signal, inject, computed, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Observable, Subject } from 'rxjs';
+import { Subject } from 'rxjs';
 import { debounceTime, distinctUntilChanged, takeUntil } from 'rxjs/operators';
-import { Router, ActivatedRoute, RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import {
   FormBuilder,
   FormGroup,
@@ -25,7 +25,6 @@ import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { InputGroupModule } from 'primeng/inputgroup';
 import { InputGroupAddonModule } from 'primeng/inputgroupaddon';
-import { CheckboxModule } from 'primeng/checkbox';
 
 import { SalesService, CreateSaleDto, CUSTOMER_SOURCE_OPTIONS } from '../../services/sales.service';
 import { BranchService } from '../../../../core/services/branch.service';
@@ -73,7 +72,6 @@ export class SaleFormComponent implements OnInit, OnDestroy {
   private readonly productsService = inject(ProductsService);
   private readonly authService = inject(AuthService);
   private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
   private readonly messageService = inject(MessageService);
 
   // Permission checks
@@ -82,8 +80,6 @@ export class SaleFormComponent implements OnInit, OnDestroy {
   );
 
   saleForm: FormGroup;
-  isEditMode = false;
-  saleId: string | null = null;
   isLoading = false;
 
   // Customer source options
@@ -123,11 +119,6 @@ export class SaleFormComponent implements OnInit, OnDestroy {
   filteredProducts = signal<Product[]>([]);
   currentProductRowIndex: number | null = null;
 
-  // Computed totals
-  totalAmount = computed(() => {
-    return 0;
-  });
-
   constructor() {
     this.saleForm = this.fb.group({
       customerId: [null, Validators.required],
@@ -166,16 +157,7 @@ export class SaleFormComponent implements OnInit, OnDestroy {
       this.saleForm.patchValue({ branchId: currentBranch.id });
     }
 
-    this.route.paramMap.subscribe((params) => {
-      const id = params.get('id');
-      if (id) {
-        this.isEditMode = true;
-        this.saleId = id;
-        this.loadSale(id);
-      } else {
-        this.addItem(); // Add one empty item row by default
-      }
-    });
+    this.addItem();
   }
 
   ngOnDestroy() {
@@ -192,7 +174,7 @@ export class SaleFormComponent implements OnInit, OnDestroy {
       product: [null, Validators.required], // Selected product object
       productId: [null, Validators.required],
       productName: [''], // Display name
-      quantity: [1, [Validators.required, Validators.min(1)]],
+      quantity: [1, [Validators.required, Validators.min(1), Validators.pattern(/^\d+$/)]],
       unitPrice: [{ value: 0, disabled: true }], // Display only
       total: [{ value: 0, disabled: true }], // Display only
     });
@@ -366,6 +348,19 @@ export class SaleFormComponent implements OnInit, OnDestroy {
   selectProduct(product: Product) {
     if (this.currentProductRowIndex === null) return;
 
+    const isAlreadySelected = this.items.controls.some(
+      (control, index) =>
+        index !== this.currentProductRowIndex && control.get('productId')?.value === product.id
+    );
+    if (isAlreadySelected) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Product already added',
+        detail: 'Change the quantity on the existing line instead.',
+      });
+      return;
+    }
+
     const group = this.items.at(this.currentProductRowIndex);
     group.patchValue({
       product: product,
@@ -387,17 +382,6 @@ export class SaleFormComponent implements OnInit, OnDestroy {
     return this.items.controls.reduce((acc, group) => {
       return acc + (group.get('total')?.value || 0);
     }, 0);
-  }
-
-  loadSale(id: string) {
-    this.isLoading = true;
-    this.salesService.getSale(id).subscribe({
-      next: (sale) => {
-        // Populate form
-        this.isLoading = false;
-      },
-      error: () => (this.isLoading = false),
-    });
   }
 
   onSubmit() {
@@ -436,11 +420,7 @@ export class SaleFormComponent implements OnInit, OnDestroy {
       };
     }
 
-    const request$ = this.isEditMode
-      ? new Observable() // Update not implemented in backend yet for full sale structure
-      : this.salesService.createSale(dto);
-
-    request$.subscribe({
+    this.salesService.createSale(dto).subscribe({
       next: () => {
         this.messageService.add({
           severity: 'success',

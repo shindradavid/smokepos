@@ -7,11 +7,8 @@ import { StatsCardComponent } from '../../../../shared/components/stats-card/sta
 import { DashboardService } from '../../../../core/services/dashboard.service';
 import { AuthService } from '../../../../core/services/auth.service';
 import { BranchService } from '../../../../core/services/branch.service';
-import { SidebarBadgeService } from '../../../../core/services/sidebar-badge.service';
 import { DashboardStats } from '../../../../core/models/dashboard.model';
 import { formatCurrency } from '../../../../shared/utils/currency.util';
-import { MessagesService } from '../../../messages/services/messages.service';
-import { AdminMessage } from '../../../messages/models/message.model';
 
 interface StatCard {
   title: string;
@@ -45,13 +42,9 @@ export class DashboardComponent implements OnInit {
   private readonly authService = inject(AuthService);
   readonly branchService = inject(BranchService);
   private readonly router = inject(Router);
-  private readonly messagesService = inject(MessagesService);
-  readonly badgeService = inject(SidebarBadgeService);
 
   readonly dashboardStats = signal<DashboardStats | null>(null);
   readonly statsLoading = signal(false);
-  readonly recentMessages = signal<AdminMessage[]>([]);
-  readonly messagesLoading = signal(false);
 
   constructor() {
     // Reload stats when branch changes
@@ -59,14 +52,6 @@ export class DashboardComponent implements OnInit {
       const branchId = this.branchService.currentBranchId();
       if (branchId) {
         this.loadDashboardStats();
-      }
-    });
-
-    effect(() => {
-      const unreadCount = this.badgeService.getBadgeCount('messages');
-      if (this.canViewMessages()) {
-        void unreadCount;
-        this.loadRecentMessages();
       }
     });
   }
@@ -79,10 +64,6 @@ export class DashboardComponent implements OnInit {
   readonly canViewInventory = computed(() => this.authService.hasPermission('dashboard.inventory'));
 
   readonly canViewFinancial = computed(() => this.authService.hasPermission('dashboard.financial'));
-
-  readonly canViewMessages = computed(
-    () => this.authService.hasPermission('message.view') || this.authService.hasPermission('message.read')
-  );
 
   // Expose formatCurrency to template
   readonly formatCurrency = formatCurrency;
@@ -123,7 +104,7 @@ export class DashboardComponent implements OnInit {
         subtitle: 'Current inventory value',
         icon: 'pi pi-box',
         iconBgColor: '#dbeafe',
-        iconColor: '#3b82f6',
+        iconColor: '#009688',
       });
 
       allStats.push({
@@ -131,8 +112,8 @@ export class DashboardComponent implements OnInit {
         value: formatCurrency(data.totalCostOfAvailableStock),
         subtitle: 'Inventory buying cost',
         icon: 'pi pi-warehouse',
-        iconBgColor: '#f3e8ff',
-        iconColor: '#8b5cf6',
+        iconBgColor: '#FAFAFA',
+        iconColor: '#263238',
       });
     }
 
@@ -164,7 +145,7 @@ export class DashboardComponent implements OnInit {
         subtitle: 'This month',
         icon: 'pi pi-percentage',
         iconBgColor: '#dbeafe',
-        iconColor: '#3b82f6',
+        iconColor: '#009688',
       });
 
       allStats.push({
@@ -173,7 +154,7 @@ export class DashboardComponent implements OnInit {
         subtitle: 'This month',
         icon: 'pi pi-percentage',
         iconBgColor: '#fef3c7',
-        iconColor: '#f59e0b',
+        iconColor: '#FFB300',
       });
     }
 
@@ -188,11 +169,11 @@ export class DashboardComponent implements OnInit {
     }
 
     const colors = [
-      '#3b82f6', // blue
+      '#009688', // teal
       '#22c55e', // green
-      '#f59e0b', // amber
+      '#FFB300', // amber
       '#ef4444', // red
-      '#8b5cf6', // purple
+      '#263238', // dark slate
       '#06b6d4', // cyan
     ];
 
@@ -309,7 +290,7 @@ export class DashboardComponent implements OnInit {
       label: 'Add Product',
       route: '/products/new',
       permission: 'product.create',
-      color: '#3b82f6',
+      color: '#009688',
       bgColor: '#dbeafe',
     },
     {
@@ -317,7 +298,7 @@ export class DashboardComponent implements OnInit {
       label: 'Add Expense',
       route: '/expenses/new',
       permission: 'expense.create',
-      color: '#f59e0b',
+      color: '#FFB300',
       bgColor: '#fef3c7',
     },
 
@@ -335,7 +316,7 @@ export class DashboardComponent implements OnInit {
       label: 'New Purchase Order',
       route: '/procurement/purchase-orders/new',
       permission: 'purchaseOrder.create',
-      color: '#6366f1',
+      color: '#263238',
       bgColor: '#e0e7ff',
     },
     {
@@ -357,19 +338,11 @@ export class DashboardComponent implements OnInit {
       bgColor: '#fee2e2',
     },
     {
-      icon: 'pi pi-bookmark',
-      label: 'Add Brand',
-      route: '/brands/new',
-      permission: 'brand.create',
-      color: '#06b6d4',
-      bgColor: '#cffafe',
-    },
-    {
       icon: 'pi pi-tag',
       label: 'Add Category',
       route: '/categories/new',
       permission: 'category.create',
-      color: '#8b5cf6',
+      color: '#263238',
       bgColor: '#ede9fe',
     },
     {
@@ -377,7 +350,7 @@ export class DashboardComponent implements OnInit {
       label: 'Add Supplier',
       route: '/procurement/suppliers/new',
       permission: 'supplier.create',
-      color: '#14b8a6',
+      color: '#009688',
       bgColor: '#ccfbf1',
     },
   ];
@@ -394,7 +367,6 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit() {
     this.loadDashboardStats();
-    this.loadRecentMessages();
   }
 
   private loadDashboardStats() {
@@ -431,40 +403,5 @@ export class DashboardComponent implements OnInit {
 
   onQuickAction(action: QuickAction) {
     this.router.navigate([action.route]);
-  }
-
-  openMessages() {
-    this.router.navigate(['/messages']);
-  }
-
-  openInboxMessage(_message: AdminMessage) {
-    this.router.navigate(['/messages'], { queryParams: { view: 'inbox' } });
-  }
-
-  formatMessageDate(value: string) {
-    return new Intl.DateTimeFormat('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    }).format(new Date(value));
-  }
-
-  private loadRecentMessages() {
-    if (!this.canViewMessages()) {
-      return;
-    }
-
-    this.messagesLoading.set(true);
-    this.messagesService.getInbox({ page: 1, limit: 5 }).subscribe({
-      next: (response) => {
-        this.recentMessages.set(response.data);
-        this.messagesLoading.set(false);
-      },
-      error: () => {
-        this.recentMessages.set([]);
-        this.messagesLoading.set(false);
-      },
-    });
   }
 }

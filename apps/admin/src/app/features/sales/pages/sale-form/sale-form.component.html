@@ -1,7 +1,7 @@
 <div class="sale-form-page">
   <app-page-header
-    [title]="isEditMode ? 'Edit Sale' : 'New Sale'"
-    [subtitle]="isEditMode ? 'Update sale details' : 'Create a new sale order'"
+    title="New Sale"
+    subtitle="Create a new sale"
     [showBackButton]="true"
   ></app-page-header>
 
@@ -153,6 +153,8 @@
                   <p-inputNumber
                     formControlName="quantity"
                     [min]="1"
+                    [minFractionDigits]="0"
+                    [maxFractionDigits]="0"
                     [showButtons]="true"
                     buttonLayout="horizontal"
                     inputStyleClass="text-center"

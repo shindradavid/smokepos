@@ -34,10 +34,6 @@ export class CreateProductDto {
   categoryId?: string;
 
   @IsUUID()
-  @IsOptional()
-  brandId?: string;
-
-  @IsUUID()
   @IsNotEmpty()
   branchId: string;
 
@@ -75,7 +71,7 @@ export class CreateProductDto {
   costPrice?: number;
 }
 
-export class UpdateProductDto extends PartialType(CreateProductDto) { }
+export class UpdateProductDto extends PartialType(CreateProductDto) {}
 
 export class UpdateStockDto {
   @IsInt()
@@ -99,7 +95,6 @@ export class ProductResponseDto {
   sku: string;
   images: string[];
   categoryId: string;
-  brandId: string;
   branchId: string;
   price: number;
   costPrice: number | null;

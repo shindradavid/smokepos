@@ -1,7 +1,7 @@
 import { Controller, Get, Param, Query, NotFoundException } from '@nestjs/common';
 import { Public } from '../../common/decorators/public.decorator';
 import { SiteService } from './site.service';
-import { SiteProductsQueryDto, SiteCategoriesQueryDto, SiteBrandsQueryDto } from './dto';
+import { SiteProductsQueryDto, SiteCategoriesQueryDto } from './dto';
 
 @Controller({ path: 'site', version: '1' })
 @Public()
@@ -11,7 +11,7 @@ export class SiteController {
   /**
    * Get products for the public site
    * GET /site/products
-   * Query params: page, limit, featured, categoryId, brandId, search
+   * Query params: page, limit, category, search
    */
   @Get('products')
   async getProducts(@Query() query: SiteProductsQueryDto) {
@@ -51,14 +51,5 @@ export class SiteController {
       throw new NotFoundException(`Category not found`);
     }
     return category;
-  }
-
-  /**
-   * Get brands for the public site
-   * GET /site/brands
-   */
-  @Get('brands')
-  async getBrands(@Query() query: SiteBrandsQueryDto) {
-    return this.siteService.getBrands(query);
   }
 }

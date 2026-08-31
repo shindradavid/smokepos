@@ -72,8 +72,8 @@ async function seedInitialAdmin() {
         slug: 'main',
         isMain: true,
         isActive: true,
-        accentColor: '#ee1b24',
-        txtOnAccentColor: getContrastColor('#ee1b24'),
+        accentColor: '#263238',
+        txtOnAccentColor: getContrastColor('#263238'),
       });
       await branchRepo.save(mainBranch);
       console.log('   ✅ Main branch created');
@@ -89,8 +89,8 @@ async function seedInitialAdmin() {
         slug: 'kiseka',
         isMain: false,
         isActive: true,
-        accentColor: '#f5f216',
-        txtOnAccentColor: getContrastColor('#f5f216'),
+        accentColor: '#009688',
+        txtOnAccentColor: getContrastColor('#009688'),
       });
       await branchRepo.save(kisekaBranch);
       console.log('   ✅ Kiseka branch created');
@@ -99,14 +99,14 @@ async function seedInitialAdmin() {
     }
 
     // 3. Create Initial Admin User & Staff
-    const adminEmail = 'info@homedollarmarketing.com';
+    const adminEmail = 'shindradavid.work@gmail.com';
     console.log(`\n👤 Checking admin user (${adminEmail})...`);
 
     let user = await userRepo.findOne({ where: { email: adminEmail } });
 
     if (!user) {
       // Generate password hash
-      const defaultPassword = 'Admin@123@)';
+      const defaultPassword = 'Admin@123098';
       const salt = await bcrypt.genSalt();
       const hashedPassword = await bcrypt.hash(defaultPassword, salt);
 

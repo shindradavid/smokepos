@@ -11,6 +11,8 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 import { EnvService } from '../../config/env.config';
+import { DataSource } from 'typeorm';
+import { User } from '../../modules/auth/entities/user.entity';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -21,7 +23,8 @@ export class AuthGuard implements CanActivate {
     @Inject(JwtService)
     private jwtService: JwtService,
     @Inject(EnvService)
-    private envService: EnvService
+    private envService: EnvService,
+    private readonly dataSource: DataSource
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -47,10 +50,18 @@ export class AuthGuard implements CanActivate {
         secret: this.envService.get('JWT_SECRET'),
       });
 
+      const user = await this.dataSource.getRepository(User).findOne({
+        where: { id: payload.sub },
+        select: ['id', 'email', 'accountType', 'isActive'],
+      });
+      if (!user?.isActive) {
+        throw new UnauthorizedException('User not found or inactive');
+      }
+
       request['user'] = {
-        id: payload.sub,
-        email: payload.email,
-        accountType: payload.accountType,
+        id: user.id,
+        email: user.email,
+        accountType: user.accountType,
         staffId: payload.staffId ?? null,
         customerId: payload.customerId ?? null,
       };

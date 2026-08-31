@@ -16,15 +16,17 @@
       </div>
     </div>
     <div class="header-actions">
-      <button
-        pButton
-        label="Export PDF"
-        icon="pi pi-file-pdf"
-        severity="danger"
-        [loading]="isExporting()"
-        [disabled]="!data() || isLoading()"
-        (click)="exportPdf()"
-      ></button>
+      @if (canExport()) {
+        <button
+          pButton
+          label="Export PDF"
+          icon="pi pi-file-pdf"
+          severity="danger"
+          [loading]="isExporting()"
+          [disabled]="!data() || isLoading()"
+          (click)="exportPdf()"
+        ></button>
+      }
     </div>
   </div>
 

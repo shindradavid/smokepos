@@ -8,11 +8,17 @@
 // Override PrimeNG CSS variables
 :root {
   // Primary
-  --p-primary-50: #{$primary-light};
-  --p-primary-100: #{$primary-light};
+  --p-primary-50: #{color.mix($white, $primary, 96%)};
+  --p-primary-100: #{color.mix($white, $primary, 90%)};
+  --p-primary-200: #{color.mix($white, $primary, 78%)};
+  --p-primary-300: #{color.mix($white, $primary, 60%)};
+  --p-primary-400: #{color.mix($white, $primary, 35%)};
   --p-primary-500: #{$primary};
-  --p-primary-600: #{$primary};
-  --p-primary-700: #{$primary-dark};
+  --p-primary-600: #{$primary-dark};
+  --p-primary-700: #{color.mix($black, $primary, 20%)};
+  --p-primary-800: #{color.mix($black, $primary, 32%)};
+  --p-primary-900: #{color.mix($black, $primary, 44%)};
+  --p-primary-950: #{color.mix($black, $primary, 58%)};
 
   // Surface (PrimeNG prefixed)
   --p-surface-0: #{$white};
@@ -45,7 +51,7 @@
 
   // Primary colors (non-prefixed for custom components)
   --primary-color: #{$primary};
-  --primary-color-rgb: 238, 27, 36;
+  --primary-color-rgb: 38, 50, 56;
   --primary-50: #{color.mix($white, $primary, 95%)};
   --primary-100: #{color.mix($white, $primary, 90%)};
   --primary-200: #{color.mix($white, $primary, 80%)};
@@ -54,6 +60,13 @@
   --primary-500: #{$primary};
   --primary-600: #{$primary-dark};
   --primary-700: #{color.mix($black, $primary, 20%)};
+
+  // QWIK POS supporting brand colors
+  --secondary-color: #{$secondary};
+  --secondary-color-rgb: 0, 150, 136;
+  --accent-color: #{$accent};
+  --accent-color-rgb: 255, 179, 0;
+  --brand-surface: #{$brand-surface};
 
   // Text colors
   --text-color: #{$gray-900};
@@ -98,16 +111,6 @@
   --yellow-500: #eab308;
   --yellow-600: #ca8a04;
   --yellow-700: #a16207;
-
-  // Semantic colors - Purple
-  --purple-50: #faf5ff;
-  --purple-100: #f3e8ff;
-  --purple-200: #e9d5ff;
-  --purple-300: #d8b4fe;
-  --purple-400: #c084fc;
-  --purple-500: #a855f7;
-  --purple-600: #9333ea;
-  --purple-700: #7e22ce;
 
   // Border radius
   --p-border-radius: #{$border-radius};

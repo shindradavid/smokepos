@@ -1,71 +1,81 @@
 <header class="header">
-    <!-- Page Title -->
-    <div class="header-title">
-        <span><span class="brand-primary">SMOKE</span> <span class="brand-accent">POS</span></span>
-    </div>
+  <!-- Page Title -->
+  <div class="header-title">
+    <span><span class="brand-primary">QWIK</span> <span class="brand-accent">POS</span></span>
+  </div>
 
-    <!-- Right Side Actions -->
-    <div class="header-actions">
-        <!-- Branch Switcher -->
-        @if (currentBranch) {
-        <div class="branch-switcher">
-            <button class="branch-dropdown" [style.background-color]="currentBranch.accentColor || '#ee1b24'"
-                [style.color]="currentBranch.txtOnAccentColor || '#ffffff'" (click)="branchPanel.toggle($event)">
-                <i class="pi pi-building"></i>
-                <span>{{ currentBranch.name }}</span>
-                <i class="pi pi-chevron-down"></i>
-            </button>
+  <!-- Right Side Actions -->
+  <div class="header-actions">
+    <!-- Branch Switcher -->
+    @if (currentBranch) {
+      <div class="branch-switcher">
+        <button
+          class="branch-dropdown"
+          [style.background-color]="currentBranch.accentColor || '#263238'"
+          [style.color]="currentBranch.txtOnAccentColor || '#FAFAFA'"
+          (click)="branchPanel.toggle($event)"
+        >
+          <i class="pi pi-building"></i>
+          <span>{{ currentBranch.name }}</span>
+          <i class="pi pi-chevron-down"></i>
+        </button>
 
-            <!-- Branch Dropdown Panel -->
-            <p-popover #branchPanel styleClass="branch-panel">
-                <div class="branch-list">
-                    <div class="branch-list-header">Switch Branch</div>
-                    @for (branch of branches; track branch.id) {
-                    <button class="branch-item" [class.active]="branch.id === currentBranch.id"
-                        (click)="onBranchSelect(branch); branchPanel.hide()">
-                        <span class="branch-color" [style.background-color]="branch.accentColor || '#ee1b24'"></span>
-                        <span class="branch-name">{{ branch.name }}</span>
-                        @if (branch.isMain) {
-                        <span class="main-badge">Main</span>
-                        }
-                        @if (branch.id === currentBranch.id) {
-                        <i class="pi pi-check check-icon"></i>
-                        }
-                    </button>
-                    }
-                </div>
-            </p-popover>
-        </div>
-        }
-
-        <!-- User Menu -->
-        @if (user) {
-        <div class="user-menu" (click)="userPanel.toggle($event)">
-            <img [src]="userAvatar" [alt]="userFullName" class="user-avatar" />
-            <div class="user-info">
-                <span class="user-name">{{ userFullName }}</span>
-                <span class="user-email">{{ userEmail }}</span>
-            </div>
-            <i class="pi pi-chevron-down"></i>
-        </div>
-
-        <!-- User Dropdown Panel -->
-        <p-popover #userPanel styleClass="user-panel">
-            <div class="user-dropdown">
-                <div class="user-dropdown-header">
-                    <img [src]="userAvatar" [alt]="userFullName" class="dropdown-avatar" />
-                    <div class="dropdown-user-info">
-                        <span class="dropdown-name">{{ userFullName }}</span>
-                        <span class="dropdown-email">{{ userEmail }}</span>
-                    </div>
-                </div>
-                <div class="user-dropdown-divider"></div>
-                <button class="dropdown-item" (click)="onLogout(); userPanel.hide()">
-                    <i class="pi pi-sign-out"></i>
-                    <span>Logout</span>
-                </button>
-            </div>
+        <!-- Branch Dropdown Panel -->
+        <p-popover #branchPanel styleClass="branch-panel">
+          <div class="branch-list">
+            <div class="branch-list-header">Switch Branch</div>
+            @for (branch of branches; track branch.id) {
+              <button
+                class="branch-item"
+                [class.active]="branch.id === currentBranch.id"
+                (click)="onBranchSelect(branch); branchPanel.hide()"
+              >
+                <span
+                  class="branch-color"
+                  [style.background-color]="branch.accentColor || '#263238'"
+                ></span>
+                <span class="branch-name">{{ branch.name }}</span>
+                @if (branch.isMain) {
+                  <span class="main-badge">Main</span>
+                }
+                @if (branch.id === currentBranch.id) {
+                  <i class="pi pi-check check-icon"></i>
+                }
+              </button>
+            }
+          </div>
         </p-popover>
-        }
-    </div>
+      </div>
+    }
+
+    <!-- User Menu -->
+    @if (user) {
+      <div class="user-menu" (click)="userPanel.toggle($event)">
+        <img [src]="userAvatar" [alt]="userFullName" class="user-avatar" />
+        <div class="user-info">
+          <span class="user-name">{{ userFullName }}</span>
+          <span class="user-email">{{ userEmail }}</span>
+        </div>
+        <i class="pi pi-chevron-down"></i>
+      </div>
+
+      <!-- User Dropdown Panel -->
+      <p-popover #userPanel styleClass="user-panel">
+        <div class="user-dropdown">
+          <div class="user-dropdown-header">
+            <img [src]="userAvatar" [alt]="userFullName" class="dropdown-avatar" />
+            <div class="dropdown-user-info">
+              <span class="dropdown-name">{{ userFullName }}</span>
+              <span class="dropdown-email">{{ userEmail }}</span>
+            </div>
+          </div>
+          <div class="user-dropdown-divider"></div>
+          <button class="dropdown-item" (click)="onLogout(); userPanel.hide()">
+            <i class="pi pi-sign-out"></i>
+            <span>Logout</span>
+          </button>
+        </div>
+      </p-popover>
+    }
+  </div>
 </header>
